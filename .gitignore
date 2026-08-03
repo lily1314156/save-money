@@ -1,0 +1,14 @@
+# 編譯產物
+project/target/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+Thumbs.db
+.DS_Store
+
+# 機密（之後金鑰改環境變數用）
+.env

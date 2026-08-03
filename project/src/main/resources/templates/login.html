@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>會員登入</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400..800&family=Noto+Sans+TC:wght@100..900&display=swap');
+    </style>
+    <link rel="stylesheet" href="/css/style-merged.css">
+  </head>
+
+
+  <body class="page-auth">
+    <nav>
+      <div class="logo">SAVE MONEY</div>
+      <ul>
+        <li><a href="/index">首頁</a></li>
+        <li><a href="/stores">店家頁面</a></li>
+        <li><a href="/profile">我的專區</a></li>
+      </ul>
+    </nav>
+
+    <div class="container">
+      <h1>登入</h1>
+      <div id="error-msg" class="alert alert-error" style="display: none;"></div>
+      <form id="login-form">
+        <div class="form-group">
+          <label for="email">Email</label>
+          <input type="email" id="email" name="email" placeholder="輸入 Email" required />
+        </div>
+        <div class="form-group">
+          <label for="password">密碼</label>
+          <input type="password" id="password" name="password" placeholder="輸入密碼" required />
+        </div>
+        <button type="submit" class="button">登入</button>
+      </form>
+      <script>
+        document.getElementById('login-form').addEventListener('submit', function (e) {
+          e.preventDefault();
+          const errorMsg = document.getElementById('error-msg');
+          errorMsg.style.display = 'none';
+
+          const email = document.getElementById('email').value;
+          const password = document.getElementById('password').value;
+
+          fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+          })
+            .then(res => res.json())
+            .then(data => {
+              if (data.success) {
+                window.location.href = '/profile';
+              } else {
+                errorMsg.textContent = data.message || '登入失敗';
+                errorMsg.style.display = 'block';
+              }
+            })
+            .catch(() => {
+              errorMsg.textContent = '系統錯誤，請稍後再試';
+              errorMsg.style.display = 'block';
+            });
+        });
+      </script>
+      <div class="footer">
+        <a href="/register">還沒有帳號？前往註冊</a>
+        <span style="margin: 0 6px;">·</span>
+        <a href="/forgot-password">忘記密碼？</a>
+      </div>
+    </div>
+  </body>
+</html>

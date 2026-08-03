@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="zh-TW" xmlns:th="http://www.thymeleaf.org">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SAVE MONEY - 我的專區</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400..800&family=Noto+Sans+TC:wght@100..900&display=swap');
+    </style>
+    <link rel="stylesheet" href="/css/style-merged.css" />
+  </head>
+  <body class="page-profile">
+
+    <!-- NAV -->
+    <nav>
+      <div class="logo">SAVE MONEY</div>
+      <ul>
+        <li><a href="/index">首頁</a></li>
+        <li><a href="/stores">店家頁面</a></li>
+        <li><a href="/profile" class="active">我的專區</a></li>
+      </ul>
+    </nav>
+
+    <!-- MEMBER PROFILE -->
+    <div class="profile-section">
+      <div class="profile-left">
+        <div class="profile-name">會員名稱</div>
+        <div class="avatar-ring">👤</div>
+        <button class="logout-btn" onclick="handleLogout()">登出</button>
+      </div>
+      <div class="profile-right">
+        <table class="info-table">
+          <caption>會員資料</caption>
+          <tbody>
+            <!-- th:text 會在後端渲染時把 td 內容換掉；裡面原本的字只是直接開檔預覽用的假資料 -->
+            <tr><td>使用者名稱</td><td th:text="${user.username} ?: '未設定'">會員名稱</td></tr>
+            <tr><td>使用者帳號</td><td th:text="${user.email}">123456@gmail.com</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="profile-divider"></div>
+
+    <!-- SAVED COUPONS TITLE -->
+    <div class="saved-title">
+      <h2>收藏優惠券</h2>
+    </div>
+
+    <div class="wrap">
+
+      <!-- BRAND CHIPS -->
+      <div class="chips-wrap" id="chipsWrap"></div>
+
+      <hr class="divider" />
+
+      <!-- ACTIVE STORE LABEL -->
+      <div class="active-store-title" id="activeStoreLabel">50 嵐</div>
+
+      <!-- STATUS TABS：全部（獨立）＋ 類型群組 ＋ 有效期限群組（跟 index.html 同一套）
+           data-group 標記按鈕屬於哪一群，active 互斥只發生在同群組內 -->
+      <div class="status-bar">
+        <button class="status-tab" data-group="none" onclick="setStatus(this,'all')">全部</button>
+        <span class="status-label">類型</span>
+        <button class="status-tab" data-group="type" onclick="setStatus(this,'bogo')">買一送一</button>
+        <button class="status-tab" data-group="type" onclick="setStatus(this,'coupon')">折價券</button>
+        <span class="status-label">有效期限</span>
+        <button class="status-tab active" data-group="expiry" data-value="latest" onclick="setStatus(this,'latest')">最新</button>
+        <button class="status-tab" data-group="expiry" onclick="setStatus(this,'expiring')">即將到期</button>
+      </div>
+
+    </div>
+
+
+    <section class="hot-coupons">
+      <!-- COUPON GRID -->
+      <div class="saved-coupons-grid" id="savedGrid"></div>
+
+      <!-- PAGINATION -->
+      <div class="pagination" id="paginationWrap"></div>
+    </section>
+
+    <div class="back-top">
+      <a href="#" onclick="window.scrollTo({top:0,behavior:'smooth'});return false;">⬆ 回到最頂端</a>
+    </div>
+
+    <!-- 共用：優惠券卡片產生器（要在下面 inline script 之前載入）-->
+    <script src="/js/coupon-card.js"></script>
+    <script>
+      /* ── State ── */
+      let allBrands = [];                                       // /api/brands 回來的整包
+      let myCoupons = null;          // /api/me/coupons?category=all 整包（含過期，前端自己濾），只打一次
+
+      // 篩選狀態（兩個維度，互不干擾）——跟 index.html 同一套
+      let currentType   = null;      // null = 不限類型 / 'buy1get1' = 買一送一 / 'price' = 折價券
+      let currentExpiry = 'latest';  // null = 不限 / 'latest' = 今日券 / 'expiring' = 即將到期
+      let currentCoupons = [];       // 目前 tab 篩完的券（品牌過濾在 getFilteredCoupons 做）
+
+      let currentBrandSlug = 'fifty';                           // 目前選的品牌（用 slug 識別）
+      let currentPage      = 1;
+      const ITEMS_PER_PAGE = 8;
+
+
+      /* ── 通用 fetch 包裝 ── */
+      async function fetchJson(url, options = {}) {
+        const res = await fetch(url, options);
+        if (!res.ok) throw new Error(`API ${url} 失敗 (${res.status})`);
+        return res.json();
+      }
+
+      // 今天日期 'yyyy-MM-dd'（用本地時間組字串；toISOString 是 UTC，晚上會差一天）
+      function todayStr() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }
+
+      // 今天 + n 天的 'yyyy-MM-dd'（跟 todayStr 同一套本地時間邏輯）
+      // setDate 會自動處理跨月跨年：7/30 加 3 天 → 8/2
+      function addDaysStr(n) {
+        const d = new Date();
+        d.setDate(d.getDate() + n);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }
+
+      /* ── Init：頁面載入後跑 ── */
+      document.addEventListener('DOMContentLoaded', async () => {
+        try {
+          allBrands = await fetchJson('/api/brands');
+          // 預設品牌：若 'fifty' 不存在，就抓清單第一個
+          if (!allBrands.find(b => b.slug === currentBrandSlug) && allBrands.length > 0) {
+            currentBrandSlug = allBrands[0].slug;
+          }
+          renderChips();
+          renderLabel();
+          await applyFilters();   // 預設 tab 是「最新」（currentExpiry = 'latest'）
+        } catch (err) {
+          console.error(err);
+          document.getElementById('savedGrid').innerHTML =
+            '<p style="color:#c33;grid-column:1/-1;text-align:center;padding:40px 0;">載入失敗，請確認後端是否啟動</p>';
+        }
+      });
+
+      /* ── Render Brand Chips ── */
+      function renderChips() {
+        const wrap = document.getElementById('chipsWrap');
+        wrap.innerHTML = '';
+        allBrands.forEach(b => {
+          const c = document.createElement('div');
+          // 品牌過濾在每個 tab 都生效（跟 index 一樣是獨立維度），chip 永遠標記目前品牌
+          c.className = 'chip' + (b.slug === currentBrandSlug ? ' active' : '');
+          c.textContent = b.name;
+          c.onclick = () => selectBrand(b.slug);
+          wrap.appendChild(c);
+        });
+      }
+
+      function selectBrand(slug) {
+        currentBrandSlug = slug;
+        currentPage = 1;
+        // 資料已整包快取在 myCoupons，換品牌純前端過濾，不用重打 API
+        renderChips();
+        renderLabel();
+        renderGrid();
+        renderPagination();
+      }
+
+      /* ── Render store label（顯示目前選的品牌名稱）── */
+      function renderLabel() {
+        const b = allBrands.find(b => b.slug === currentBrandSlug);
+        document.getElementById('activeStoreLabel').textContent = b ? b.name : '';
+      }
+
+      /* ── Tab 切換：全部 / 類型（買一送一、折價券）/ 有效期限（最新、即將到期）──
+         跟 index.html 同一套規則：
+           1. active 互斥只發生在同群組內（data-group 相同的按鈕）
+           2. 點「全部」→ 清掉兩個群組的選取，回到所有收藏中的有效券
+           3. 點任何類型 / 期限按鈕 → 「全部」的選取被取消 */
+      async function setStatus(btn, value) {
+        if (value === 'all') {
+          // 全部：所有按鈕清光，只亮自己，兩個篩選狀態歸零
+          document.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'));
+          btn.classList.add('active');
+          currentType = null;
+          currentExpiry = null;
+        } else {
+          // 只清「同群組」＋「全部」的 active，另一個群組不動
+          const group = btn.dataset.group;   // 'type' 或 'expiry'
+          document.querySelectorAll(`.status-tab[data-group="${group}"], .status-tab[data-group="none"]`)
+            .forEach(t => t.classList.remove('active'));
+          btn.classList.add('active');
+
+          if (group === 'type') {
+            // 按鈕值 → DB coupons.type 欄位值
+            currentType = (value === 'bogo') ? 'buy1get1' : 'price';
+          } else {
+            currentExpiry = value;           // 'latest' 或 'expiring'
+          }
+        }
+        await applyFilters();
+      }
+
+      /* ── 依 currentType ＋ currentExpiry 算出要顯示的券，塞進 currentCoupons ──
+         資料只打一次 API：category=all 回「我的所有券」（含過期），之後全部前端過濾 */
+      async function applyFilters() {
+        if (myCoupons === null) {
+          try {
+            myCoupons = await fetchJson('/api/me/coupons?category=all');
+          } catch (err) {
+            document.getElementById('savedGrid').innerHTML =
+              '<p style="color:#c33;grid-column:1/-1;text-align:center;padding:40px 0;">載入失敗，請確認後端是否啟動</p>';
+            return;
+          }
+        }
+
+        // 基底：收藏中（liked）且未過期（「已過期」tab 已移除，過期券一律不顯示）
+        let list = myCoupons.filter(c => c.liked === true && c.endDate >= todayStr());
+
+        // 「最新」＝今天開始的券（跟 index 同定義）
+        if (currentExpiry === 'latest') list = list.filter(c => c.startDate === todayStr());
+
+        // 類型篩選
+        if (currentType) list = list.filter(c => c.type === currentType);
+
+        // 即將到期：只留「3 天內到期」的券（endDate <= 今天+3），再依 endDate 由近到遠排序
+        //（'yyyy-MM-dd' 字典序 = 日期序，字串可直接比大小）
+        if (currentExpiry === 'expiring') {
+          const deadline = addDaysStr(3);
+          list = list.filter(c => c.endDate <= deadline);
+          list = [...list].sort((a, b) => a.endDate.localeCompare(b.endDate));
+        }
+
+        currentCoupons = list;
+        currentPage = 1;
+        renderChips();
+        renderLabel();
+        renderGrid();
+        renderPagination();
+      }
+
+      /* 品牌過濾（tab 的類型／期限篩選已在 applyFilters 做完） */
+      function getFilteredCoupons() {
+        const brand = allBrands.find(b => b.slug === currentBrandSlug);
+        return brand
+          ? currentCoupons.filter(c => c.brandId === brand.id)
+          : currentCoupons;
+      }
+
+      /* ── 這頁卡片的差異設定（buildCouponCard 本體在 /js/coupon-card.js）──
+         profile 用 saved-coupon-card、共用的取消收藏鈕 removeButton。
+         price 版型欄位三頁都一樣（discount / content），走預設值就好 */
+      const couponCardOpts = {
+        cardClass: 'saved-coupon-card',
+        animMs: '0.4s',
+        stagger: 0.055,
+        button: removeButton,
+      };
+
+      /* ── Render Grid ── */
+      function renderGrid() {
+        const grid = document.getElementById('savedGrid');
+        const items = getFilteredCoupons();
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        const paged = items.slice(start, start + ITEMS_PER_PAGE);
+
+        grid.innerHTML = '';
+
+        if (paged.length === 0) {
+          const label = currentExpiry === 'latest'   ? '今日開始的' :
+                        currentExpiry === 'expiring' ? '即將到期的' :
+                        currentType === 'buy1get1'   ? '買一送一'   :
+                        currentType === 'price'      ? '折價券'     : '任何';
+          grid.innerHTML = `<div class="empty-state"><span>🤍</span>目前沒有${label}收藏優惠券</div>`;
+          return;
+        }
+
+        paged.forEach((c, i) => {
+          grid.appendChild(buildCouponCard(c, i, couponCardOpts));
+        });
+      }
+
+      /* ── Pagination ── */
+      function renderPagination() {
+        const wrap = document.getElementById('paginationWrap');
+        const items = getFilteredCoupons();
+        const total = Math.ceil(items.length / ITEMS_PER_PAGE) || 1;
+        wrap.innerHTML = '';
+        if (total <= 1) return;
+
+        const prev = document.createElement('button');
+        prev.className = 'page-arrow'; prev.textContent = '◀';
+        prev.onclick = () => { if (currentPage > 1) { currentPage--; renderGrid(); renderPagination(); } };
+        wrap.appendChild(prev);
+
+        for (let p = 1; p <= total; p++) {
+          const btn = document.createElement('button');
+          btn.className = 'page-btn' + (p === currentPage ? ' active' : '');
+          btn.textContent = p;
+          btn.onclick = ((pg) => () => { currentPage = pg; renderGrid(); renderPagination(); })(p);
+          wrap.appendChild(btn);
+        }
+
+        const next = document.createElement('button');
+        next.className = 'page-arrow'; next.textContent = '▶';
+        next.onclick = () => { if (currentPage < total) { currentPage++; renderGrid(); renderPagination(); } };
+        wrap.appendChild(next);
+      }
+
+      /* ── 取消收藏：打 like API（toggle），成功後就地把 cache 內該券標記為 unliked ── */
+      async function removeAndRefresh(id) {
+        try {
+          await fetchJson(`/api/me/coupons/${id}/like`, { method: 'POST' });
+          // 更新快取：把該券 liked 設 false，再重跑篩選（會從畫面消失）
+          const c = (myCoupons || []).find(c => c.id === Number(id));
+          if (c) c.liked = false;
+          await applyFilters();
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      /* ── Logout ── */
+      async function handleLogout() {
+        if (!confirm('確定要登出嗎？')) return;
+        try {
+          // 叫後端刪 Redis token + 清 cookie（HttpOnly cookie 前端刪不掉，只能靠後端）
+          await fetch('/api/logout', { method: 'POST' });
+        } finally {
+          // 不管 API 成不成功都跳去登入頁，避免卡在 profile
+          window.location.href = '/login';
+        }
+      }
+    </script>
+  </body>
+</html>

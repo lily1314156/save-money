@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>所在地區商店</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400..800&family=Noto+Sans+TC:wght@100..900&display=swap');
+    </style>
+    <link rel="stylesheet" href="/css/style-merged.css">
+  </head>
+
+
+  <body class="page-stores">
+
+    <!-- NAV -->
+    <nav>
+      <div class="logo">SAVE MONEY</div>
+      <ul>
+        <li><a href="/index">首頁</a></li>
+        <li><a href="/stores"  class="active">店家頁面</a></li>
+        <li><a href="/profile">我的專區</a></li>
+      </ul>
+    </nav>
+
+    <!-- PAGE TITLE -->
+    <div class="page-title">
+      <h1>所在地區商店</h1>
+    </div>
+
+    <div class="wrap">
+
+      <!-- SEARCH -->
+      <div class="search-bar">
+        <!-- searchInput JS 之後會用這個 id 讀取輸入值 -->
+        <input type="text" id="searchInput" placeholder="🔍  臺中市南屯區向上南路一段150號" />
+        <button onclick="filterBrand()">送出</button>   <!-- 呼叫下面的 JS 函式 -->
+      </div>
+
+      <!-- BRAND CHIPS -->
+      <div class="chips-wrap" id="chipsWrap"></div>
+
+      <hr class="divider" />
+
+      <!-- STORE NAME（內容由 JS 從 /api/stores 拿到後填入） -->
+      <div class="store-header">
+        <h2 id="storeTitle">載入中…</h2>
+      </div>
+
+      <!-- INFO BOX（內容由 JS 從 /api/stores 拿到後填入） -->
+      <div class="info-box" id="infoBox"></div>
+
+      <!-- STATUS TABS：全部（獨立）＋ 類型群組 ＋ 有效期限群組（跟 index.html 同一套）
+           data-group 標記按鈕屬於哪一群，active 互斥只發生在同群組內 -->
+      <div class="status-bar">
+        <button class="status-tab" data-group="none" onclick="setStatus(this,'all')">全部</button>
+        <span class="status-label">類型</span>
+        <button class="status-tab" data-group="type" onclick="setStatus(this,'bogo')">買一送一</button>
+        <button class="status-tab" data-group="type" onclick="setStatus(this,'coupon')">折價券</button>
+        <span class="status-label">有效期限</span>
+        <button class="status-tab active" data-group="expiry" data-value="latest" onclick="setStatus(this,'latest')">最新</button>
+        <button class="status-tab" data-group="expiry" onclick="setStatus(this,'expiring')">即將到期</button>
+      </div>
+    </div>
+
+    <!-- COUPONS：脫離 .wrap 寬度限制，獨立區塊 -->
+    <section class="hot-coupons">
+      <!-- COUPON GRID -->
+      <div class="coupons-grid" id="couponGrid"></div>
+
+      <!-- PAGINATION：按鈕由 JS 依資料量動態產生（renderPagination） -->
+      <div class="pagination" id="pagination"></div>
+    </section>
+
+    <!-- BACK TOP -->
+    <div class="back-top">
+      <a href="#" onclick="window.scrollTo({top:0,behavior:'smooth'});return false;">⬆ 回到最頂端</a>
+    </div>
+
+    <!-- 共用：優惠券卡片產生器（要在下面 inline script 之前載入）-->
+    <script src="/js/coupon-card.js"></script>
+    <script>
+      let allBrands = [];                                       // /api/brands 回來的整包
+      let allStores = [];                                       // /api/stores 回來的整包
+      // 篩選狀態（兩個維度，互不干擾）——跟 index.html 同一套
+      let currentType   = null;      // null = 不限類型 / 'buy1get1' = 買一送一 / 'price' = 折價券
+      let currentExpiry = 'latest';  // null = 不限 / 'latest' = 今日券 / 'expiring' = 即將到期
+      const couponsCache = { latest: null, all: null };  // 每個資料來源各自快取，只打一次 API
+      let currentCoupons = [];       // 目前 tab 篩完的券（品牌過濾在 renderCoupons 做）
+
+      let currentBrandSlug = 'fifty';                           // 目前選的品牌（用 slug 識別）
+      let currentPage      = 1;
+      let totalPages       = 1;   // renderCoupons 每次依資料量重算
+      const ITEMS_PER_PAGE = 8;
+
+      // 搜尋附近店家後的結果：{ center, stores, coupons }
+      // null = 還沒搜尋過，走原本 /api/stores 全部店家的邏輯
+      // 不是 null = 走附近搜尋的結果（chips 篩、店家資訊用搜尋來的）
+      let nearbyData = null;
+
+      /* ── 通用 fetch 包裝：失敗就丟錯，省得每次寫 if (!res.ok) ── */
+      async function fetchJson(url, options = {}) {
+        const res = await fetch(url, options);
+        if (!res.ok) throw new Error(`API ${url} 失敗 (${res.status})`);
+        return res.json();
+      }
+
+      /* ── 補查收藏狀態：/api/coupons/all 沒 JOIN user_coupons，liked 一律是 null，
+         拿到列表後用 status-batch 一次補齊（走 Redis，一整頁只多 1 次請求）。
+         未登入會 401 → 不是錯誤，訪客本來就沒收藏，安靜略過（愛心全暗是正確畫面）。
+         這裡不用 fetchJson：理由跟 toggleHeart 一樣，要自己看狀態碼。 ── */
+      async function applyLikedStatus(coupons) {
+        if (!coupons || coupons.length === 0) return;
+        try {
+          const res = await fetch('/api/me/coupons/like/status-batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ couponIds: coupons.map(c => c.id) })
+          });
+          if (res.ok) {
+            const map = await res.json();               // 長相：{ "3": true, "5": false }
+            coupons.forEach(c => c.liked = map[c.id] === true);
+          }
+        } catch (err) {
+          // 網路錯誤也略過：愛心是加分項，不該讓整頁掛掉
+          console.error('補查收藏狀態失敗', err);
+        }
+      }
+
+      // 今天日期 'yyyy-MM-dd'（用本地時間組字串；toISOString 是 UTC，晚上會差一天）
+      function todayStr() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }
+
+      // 今天 + n 天的 'yyyy-MM-dd'（跟 todayStr 同一套本地時間邏輯）
+      // setDate 會自動處理跨月跨年：7/30 加 3 天 → 8/2
+      function addDaysStr(n) {
+        const d = new Date();
+        d.setDate(d.getDate() + n);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      }
+
+      /* ── Init：頁面載入後跑 ── */
+      document.addEventListener('DOMContentLoaded', async () => {
+        try {
+          // 兩個獨立請求並行送出，比依序快
+          [allBrands, allStores] = await Promise.all([
+            fetchJson('/api/brands'),
+            fetchJson('/api/stores'),
+          ]);
+          console.log('brands:', allBrands);   // ← 加這行
+          console.log('stores:', allStores);   // ← 加這行
+          console.log('第一筆 store 的 key:', Object.keys(allStores[0] || {}));  // ← 加這行
+          renderChips();
+          renderStoreInfo();
+          await applyFilters();   // 預設 tab 是「最新」（currentExpiry = 'latest'）
+        } catch (err) {
+          console.error(err);
+          document.getElementById('couponGrid').innerHTML =
+            '<p style="color:#c33;grid-column:1/-1;text-align:center;padding:40px 0;">載入失敗，請確認後端是否啟動</p>';
+        }
+
+        // 輸入框按 Enter = 按下「送出」鈕
+        // e.isComposing：注音／拼音打字時，按 Enter 是「確認選字」不是「送出」，
+        // 這時 isComposing 會是 true，直接 return，避免打到一半就被送出去搜尋
+        document.getElementById('searchInput').addEventListener('keydown', e => {
+          if (e.isComposing) return;
+          if (e.key === 'Enter') filterBrand();
+        });
+      });
+
+      /* ── Render Brand Chips ──
+         chip 有三種狀態，統一在這裡決定（之前散在 filterBrand 會被重繪洗掉）：
+      */
+      function renderChips() {
+        const wrap = document.getElementById('chipsWrap');
+        wrap.innerHTML = '';
+
+        // 目前 tab 的券裡出現過的品牌 id 集合
+        const brandsWithCoupons = new Set(currentCoupons.map(c => c.brandId));
+
+        // 搜尋過的話，附近有店的品牌 id 集合（沒搜尋過 = null，不做淡化）
+        const nearbyBrandIds = nearbyData
+          ? new Set(nearbyData.stores.map(s => s.brandId))
+          : null;
+
+        allBrands.forEach(b => {
+          const c = document.createElement('div');
+          c.className = 'chip' + (b.slug === currentBrandSlug ? ' active' : '');
+          c.dataset.brandId = b.id;
+          c.textContent = b.name;
+
+          if (nearbyBrandIds && !nearbyBrandIds.has(b.id)) {
+            // 附近沒店 → 淡化且不可點
+            c.style.opacity = '0.3';
+            c.style.pointerEvents = 'none';
+          } else if (!brandsWithCoupons.has(b.id)) {
+            // 沒優惠券 → 變灰色
+            c.style.filter = 'grayscale(1)';
+            c.style.opacity = '0.45';
+          }
+
+          c.onclick = () => selectBrand(b.slug);
+          wrap.appendChild(c);
+        });
+      }
+
+      function selectBrand(slug) {
+        currentBrandSlug = slug;
+        currentPage = 1;
+        renderChips();
+        renderStoreInfo();
+        renderCoupons();   // 三個 tab 已快取，純前端 filter 即可，不重打 API
+      }
+
+      /* ── Render Store Info（從 stores 找出該品牌的第一家分店）──
+         有搜尋過（nearbyData != null）→ 顯示「離搜尋中心最近的那家」
+         還沒搜尋過 → 走原本邏輯，從 allStores 找品牌第一筆
+       */
+      function renderStoreInfo() {
+        const brand = allBrands.find(b => b.slug === currentBrandSlug);
+        if (!brand) return;
+
+        // 優先吃搜尋結果：nearbyData.stores 已經是依距離排序好的
+        let firstStore = null;
+        if (nearbyData) {
+          firstStore = nearbyData.stores.find(s => s.brandId === brand.id);
+        }
+        // 沒搜尋過、或這個品牌在附近沒店 → 退回原本 allStores 邏輯
+        if (!firstStore) {
+          firstStore = allStores.find(s => s.brandId === brand.id);
+        }
+
+        document.getElementById('storeTitle').textContent =
+          firstStore ? firstStore.name : brand.name;
+        if (firstStore) {
+          // 搜尋結果的 store 多了 distanceKm 欄位，順便秀出來
+          const distanceLine = (firstStore.distanceKm != null)
+            ? `<span style="color:#e8693a">📏 距離：${firstStore.distanceKm} km</span><br/>`
+            : '';
+          document.getElementById('infoBox').innerHTML = `
+            ${distanceLine}
+            <span>📍 地址：${firstStore.address || '—'}</span><br/>
+            <span>🕐 營業時間：${firstStore.businessHours || '—'}</span><br/>
+            <span>📞 電話：${firstStore.phone || '—'}</span>
+          `;
+        } else {
+          document.getElementById('infoBox').innerHTML =
+            '<span style="color:#aaa">附近暫無此品牌店家</span>';
+        }
+      }
+
+      /* ── Tab 切換：全部 / 類型（買一送一、折價券）/ 有效期限（最新、即將到期）──
+         跟 index.html 同一套規則：
+           1. active 互斥只發生在同群組內（data-group 相同的按鈕）
+           2. 點「全部」→ 清掉兩個群組的選取，回到所有有效券
+           3. 點任何類型 / 期限按鈕 → 「全部」的選取被取消 */
+      async function setStatus(btn, value) {
+        if (value === 'all') {
+          // 全部：所有按鈕清光，只亮自己，兩個篩選狀態歸零
+          document.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'));
+          btn.classList.add('active');
+          currentType = null;
+          currentExpiry = null;
+        } else {
+          // 只清「同群組」＋「全部」的 active，另一個群組不動
+          const group = btn.dataset.group;   // 'type' 或 'expiry'
+          document.querySelectorAll(`.status-tab[data-group="${group}"], .status-tab[data-group="none"]`)
+            .forEach(t => t.classList.remove('active'));
+          btn.classList.add('active');
+
+          if (group === 'type') {
+            // 按鈕值 → DB coupons.type 欄位值
+            currentType = (value === 'bogo') ? 'buy1get1' : 'price';
+          } else {
+            currentExpiry = value;           // 'latest' 或 'expiring'
+          }
+        }
+        await applyFilters();
+      }
+
+      /* ── 依 currentType ＋ currentExpiry 算出要顯示的券，塞進 currentCoupons ── */
+      async function applyFilters() {
+        // 1. 資料來源：「最新」用今日券 API，其餘（含即將到期、全部）用所有有效券 API
+        const source = (currentExpiry === 'latest') ? 'latest' : 'all';
+
+        // 第一次用到才打 API，之後直接讀快取
+        if (couponsCache[source] === null) {
+          try {
+            const url = source === 'all' ? '/api/coupons/all' : '/api/coupons/today';
+            couponsCache[source] = await fetchJson(url);
+            // /api/coupons/all 沒帶 liked → 補查一次再往下走（等①②都回來才渲染）。
+            // today API 有 JOIN 自帶 liked，不用補。
+            if (source === 'all') await applyLikedStatus(couponsCache[source]);
+          } catch (err) {
+            document.getElementById('couponGrid').innerHTML =
+              `<p style="color:#c33;grid-column:1/-1;text-align:center;padding:40px 0;">⚠ 無法載入優惠券（${err.message}）</p>`;
+            return;
+          }
+        }
+
+        let list = couponsCache[source];
+
+        // 1.5 「最新」＝今天開始的券。快取可能被搜尋結果覆蓋（附近品牌的所有有效券），
+        //     所以不能信任快取內容，顯示前再依 startDate 過濾一次
+        if (currentExpiry === 'latest') {
+          list = list.filter(c => c.startDate === todayStr());
+        }
+
+        // 2. 類型篩選：前端過濾就好，不用加後端 API
+        if (currentType) list = list.filter(c => c.type === currentType);
+
+        // 3. 即將到期：只留「3 天內到期」的券（endDate <= 今天+3），再依 endDate 由近到遠排序
+        //    （'yyyy-MM-dd' 字典序 = 日期序，字串可直接比大小）
+        if (currentExpiry === 'expiring') {
+          const deadline = addDaysStr(3);
+          list = list.filter(c => c.endDate <= deadline);
+          list = [...list].sort((a, b) => a.endDate.localeCompare(b.endDate));
+        }
+
+        currentCoupons = list;
+        currentPage = 1;
+        renderChips();     // 券資料變了，chips 灰不灰要重算
+        renderCoupons();
+      }
+
+      /* ── 這頁卡片的差異設定（buildCouponCard 本體在 /js/coupon-card.js）──
+         stores 用共用的愛心收藏鈕 heartButton；只需覆蓋動畫 0.4s / 每張延遲 0.06 */
+      const couponCardOpts = {
+        animMs: '0.4s',
+        stagger: 0.06,
+        button: heartButton,
+      };
+
+      /* ── Render Coupons ── */
+      function renderCoupons() {
+        const grid = document.getElementById('couponGrid');
+        // tab 篩選（類型／期限）已在 applyFilters 做完，這裡只做品牌過濾
+        const brand = allBrands.find(b => b.slug === currentBrandSlug);
+        const items = brand
+          ? currentCoupons.filter(c => c.brandId === brand.id)
+          : currentCoupons;
+
+        // 依資料量動態算總頁數；資料變少時把目前頁夾回範圍內
+        totalPages = Math.max(1, Math.ceil(items.length / ITEMS_PER_PAGE));
+        if (currentPage > totalPages) currentPage = totalPages;
+        renderPagination();
+
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        const paged = items.slice(start, start + ITEMS_PER_PAGE);
+        grid.innerHTML = '';
+
+        if (paged.length === 0) {
+          const label = currentExpiry === 'latest'   ? '今日開始的' :
+                        currentExpiry === 'expiring' ? '即將到期的' :
+                        currentType === 'buy1get1'   ? '買一送一'   :
+                        currentType === 'price'      ? '折價券'     : '';
+          grid.innerHTML = `<p style="color:#aaa;grid-column:1/-1;text-align:center;padding:40px 0;">目前沒有${label}優惠券</p>`;
+          return;
+        }
+
+        paged.forEach((c, i) => {
+          grid.appendChild(buildCouponCard(c, i, couponCardOpts));
+        });
+      }
+
+      /* ── Toggle Like：先樂觀切視覺，再打後端；失敗就回滾 ── */
+      async function toggleHeart(btn) {
+        const id = btn.dataset.id;
+        btn.classList.toggle('liked');
+        try {
+          // 這裡不用 fetchJson：因為要自己看 401 狀態碼，fetchJson 會直接丟 Error 分不出原因
+          const res = await fetch(`/api/me/coupons/${id}/like`, { method: 'POST' });
+          if (res.status === 401) {           // 後端說「未登入」
+            btn.classList.toggle('liked');    // 回滾
+            if (confirm('請先登入才能收藏優惠券，要前往登入頁嗎？')) {
+              window.location.href = '/login';
+            }
+            return;
+          }
+          if (!res.ok) throw new Error('HTTP ' + res.status);
+          // 後端回 { ok, liked }：把最新狀態寫回兩份快取。
+          // 不寫的話，切 tab 重畫（renderCoupons 讀快取）愛心會彈回舊狀態。
+          // dataset.id 是字串，券的 id 是數字，要先轉型才比得到
+          const { liked } = await res.json();
+          [couponsCache.all, couponsCache.latest].forEach(list => {
+            const c = (list || []).find(c => c.id === Number(id));
+            if (c) c.liked = liked;
+          });
+        } catch (err) {
+          btn.classList.toggle('liked');
+          console.error(err);
+        }
+      }
+
+      /* ── Pagination：頁數依資料量動態算 ── */
+      function goPage(n) {
+        currentPage = Math.max(1, Math.min(totalPages, n));
+        renderCoupons();   // 裡面會重算頁數 + 重畫按鈕
+        window.scrollTo({top: 0, behavior:'smooth'});
+      }
+      function changePage(dir) {
+        goPage(currentPage + dir);
+      }
+
+      /* 依 totalPages 重畫整條分頁列 */
+      function renderPagination() {
+        const box = document.getElementById('pagination');
+        box.innerHTML = '';
+        if (totalPages <= 1) return;   // 只有一頁就不顯示
+
+        const prev = document.createElement('button');
+        prev.className = 'page-arrow';
+        prev.textContent = '◀';
+        prev.onclick = () => changePage(-1);
+        box.appendChild(prev);
+
+        for (let i = 1; i <= totalPages; i++) {
+          const b = document.createElement('button');
+          b.className = 'page-btn' + (i === currentPage ? ' active' : '');
+          b.textContent = i;
+          b.onclick = () => goPage(i);
+          box.appendChild(b);
+        }
+
+        const next = document.createElement('button');
+        next.className = 'page-arrow';
+        next.textContent = '▶';
+        next.onclick = () => changePage(1);
+        box.appendChild(next);
+      }
+
+      /* ──────────────────────────────────────────────
+         Search：跟 index.html 同一個流程
+         輸入「逢甲大學」→ 打 /api/nearby
+         後端流程：
+           ① NearbySearchService 收到 address
+           ② 用 Geocoding API 把「逢甲大學」翻成 (24.179, 120.649)
+           ③ DB 沒店 → 用這個中心點打 Places API 撈附近品牌店家
+           ④ 把 {center, stores, coupons} 包成 JSON 回來
+         前端拿到後做三件事：
+           ① 把附近沒店的品牌 chip 淡掉
+           ② 用搜尋結果換掉「最新」券快取
+           ③ 預設選第一個有店家的品牌，秀它的店家資訊
+         ────────────────────────────────────────────── */
+      async function filterBrand() {
+        const q = document.getElementById('searchInput').value.trim();
+        if (!q) return;
+
+        try {
+          // radius=1：只抓中心點半徑 1 公里內的店家（跟 index.html 一致）
+          // fallback=true：DB 沒涵蓋的品牌會自動打 Places API 補上
+          const url = `/api/nearby?address=${encodeURIComponent(q)}&radius=1&fallback=true`;
+          const data = await fetchJson(url);
+
+          // 把搜尋結果記到全域狀態，待會 renderStoreInfo 要用
+          nearbyData = data;
+
+          // ① chips：淡化邏輯已統一搬進 renderChips（讀 nearbyData），
+          //    這裡只要重畫即可，不會再被 selectBrand 的重繪洗掉
+          const nearbyBrandIds = new Set(data.stores.map(s => s.brandId));
+          renderChips();
+
+          // ② 搜尋結果的券直接上畫面（跟 index 一樣，不做 startDate 過濾，附近有效券都秀），
+          //    同時覆蓋「最新」快取並把 tab 切回「最新」；
+          //    之後再點「最新」tab 會走 applyFilters，重新用 startDate 過濾
+          couponsCache.latest = data.coupons;
+          currentCoupons = data.coupons;
+          currentType = null;
+          currentExpiry = 'latest';
+          currentPage = 1;
+          // 用 data-value 精準選「最新」那顆，不靠按鈕順序或文字比對
+          document.querySelectorAll('.status-tab').forEach(t => t.classList.remove('active'));
+          document.querySelector('.status-tab[data-value="latest"]').classList.add('active');
+
+          // ③ 預設選第一個附近有店的品牌（避免顯示沒店的空品牌）
+          const firstNearby = allBrands.find(b => nearbyBrandIds.has(b.id));
+          if (firstNearby) {
+            // selectBrand 內部會自己 renderChips / renderStoreInfo / renderCoupons
+            selectBrand(firstNearby.slug);
+          } else {
+            // 完全沒附近店家 → 還是要刷新畫面顯示 0 張券
+            renderCoupons();
+          }
+
+          console.log(`找到 ${data.stores.length} 家店、${data.coupons.length} 張券（中心：${data.center.address}）`);
+        } catch (err) {
+          alert('搜尋失敗：' + err.message);
+          console.error(err);
+        }
+      }
+    </script>
+  </body>
+</html>

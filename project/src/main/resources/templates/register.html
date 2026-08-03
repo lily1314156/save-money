@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SAVE MONEY - 註冊</title>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400..800&family=Noto+Sans+TC:wght@100..900&display=swap');
+    </style>
+    <link rel="stylesheet" href="/css/style-merged.css">
+  </head>
+
+  <body class="page-auth">
+    <nav>
+      <div class="logo">SAVE MONEY</div>
+      <ul>
+        <li><a href="/index">首頁</a></li>
+        <li><a href="/stores">店家頁面</a></li>
+        <li><a href="/profile">我的專區</a></li>
+      </ul>
+    </nav>
+
+    <div class="container">
+      <h1>註冊</h1>
+      <div id="registerMessage" class="alert" style="display: none;"></div>
+      <form id="registerForm">
+        <div class="form-group">
+          <label for="username">暱稱</label>
+          <input type="text" id="username" name="username" placeholder="設定暱稱" required />
+        </div>
+        <div class="form-group">
+          <label for="email">電子郵件</label>
+          <input type="email" id="email" name="email" placeholder="輸入電子郵件" required />
+        </div>
+        <div class="form-group">
+          <label for="password">密碼</label>
+          <input type="password" id="password" name="password" placeholder="設定密碼" required />
+        </div>
+        <div class="form-group">
+          <label for="confirmPassword">確認密碼</label>
+          <input type="password" id="confirmPassword" name="confirmPassword" placeholder="再次輸入密碼" required />
+        </div>
+        <button type="submit" class="button">建立帳號</button>
+      </form>
+      <div class="footer">
+        已有帳號？<a href="/login">回到登入</a>
+      </div>
+    </div>
+
+    <script>
+      const registerForm = document.getElementById("registerForm");
+      const usernameInput = document.getElementById("username");
+      const emailInput = document.getElementById("email");
+      const passwordInput = document.getElementById("password");
+      const confirmPasswordInput = document.getElementById("confirmPassword");
+      const messageBox = document.getElementById("registerMessage");
+
+      function showError(message) {
+        messageBox.textContent = message;
+        messageBox.className = "alert alert-error";
+        messageBox.style.display = "block";
+      }
+
+      function showSuccess(message) {
+        messageBox.textContent = message;
+        messageBox.className = "alert alert-success";
+        messageBox.style.display = "block";
+      }
+
+      registerForm.addEventListener("submit", async function (event) {
+        event.preventDefault();
+        messageBox.style.display = "none";
+
+        if (passwordInput.value !== confirmPasswordInput.value) {
+          showError("兩次輸入的密碼不一致，請重新確認。");
+          confirmPasswordInput.focus();
+          return;
+        }
+
+        try {
+          const response = await fetch("/api/register", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              username: usernameInput.value,
+              email: emailInput.value,
+              password: passwordInput.value,
+            }),
+          });
+
+          const result = await response.json();
+
+          if (!response.ok || !result.success) {
+            showError(result.message || "註冊失敗，請稍後再試。");
+            return;
+          }
+
+          showSuccess("註冊成功，即將前往登入頁…");
+          registerForm.reset();
+          setTimeout(() => { window.location.href = "/login"; }, 1500);
+        } catch (error) {
+          showError("無法連線到伺服器，請稍後再試。");
+        }
+      });
+    </script>
+  </body>
+</html>

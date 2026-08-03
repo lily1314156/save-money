@@ -1,0 +1,1004 @@
+// =========================================================
+//   SAVE MONEY — 共用樣式表（style.css + style-stores.css 合併）
+//   頁面樣式透過 body.page-index / body.page-stores 區分
+// =========================================================
+:root {
+	--bg: #fdf6e3;              // 定義全域變數：主背景顏色（米黃色）
+	--bg2: #faefc8;             // 變數：次要背景顏色（稍微深一點的米色）
+	--accent-orange: #e8693a;   // 變數：主視覺強調色（橘色）
+	--accent-yellow: #f5c518;   // 變數：次強調色（黃色）
+	--accent-blue: #2b6cb0;     // 變數：標題常用的藍色
+	--accent-red: #c0392b;      // 變數：價格或警示常用的紅色
+	--text-dark: #1a1a2e;       // 變數：深色文字（近黑色）
+	--text-mid: #555;           // 變數：次要文字（灰色）
+	--card-bg: #fff;            // 變數：卡片背景色（純白）
+	--border: #e0c97a;          // 變數：邊框顏色
+	--shadow: 0 4px 18px rgba(0, 0, 0, 0.08); // 變數：預設陰影效果
+	--radius: 14px;             // 變數：預設圓角大小
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;     // 讓所有元素的 padding 和 border 都算在設定的寬度內，不會撐破版面
+	margin: 0;                  // 清除瀏覽器預設的外距
+	padding: 0;                 // 清除瀏覽器預設的內距
+}
+
+body {
+	background: var(--bg);      // 將整個網頁背景設定為上面定義的米黃色變數
+	font-family: "Noto Sans TC", sans-serif; // 設定預設字體為思源黑體，若無則用系統無襯線字體
+	color: var(--text-dark);    // 設定網頁預設文字顏色
+}
+
+input, textarea, button, select {
+    font-family: inherit;
+}
+
+// ── NAV（共用）──
+nav {
+	position: sticky;           // 讓導覽列在滾動時「黏」在畫面上方
+	top: 0;                     // 黏在距離頂部 0px 的位置
+	z-index: 100;               // 設定圖層高度，確保導覽列蓋在其他內容之上
+	background: var(--bg);      // 導覽列背景色
+	border-bottom: 2px solid var(--border); // 導覽列下方的底線
+	display: flex;              // 啟用 Flexbox 彈性排版
+	align-items: center;        // 讓內容在垂直方向置中
+	justify-content: space-between; // 讓 Logo 靠左，選單靠右
+	padding: 0 36px;            // 導覽列左右內縮 36px
+	height: 62px;               // 固定導覽列高度為 62px
+	box-shadow: 0 2px 14px rgba(0, 0, 0, 0.07); // 導覽列下方的淡淡陰影
+
+	ul {                        // 針對 nav 裡面的 <ul>（無序列表）
+		list-style: none;         // 拿掉預設的項目符號（黑點）
+		display: flex;            // 選單項目變成橫向排列
+		gap: 30px;                // 每個選單項目之間的間距為 30px
+
+		li a {                    // 針對 <li> 裡面的 <a>（連結）
+			text-decoration: none;  // 拿掉連結底線
+			color: var(--text-mid); // 文字設定為灰色
+			font-weight: 500;       // 字體稍微加粗
+			font-size: 0.95rem;     // 字體大小
+			padding-bottom: 3px;    // 文字下方留一點空間給底線
+			border-bottom: 2px solid transparent; // 預設一條透明底線（為了 hover 動畫做準備）
+			transition: color 0.2s, border-color 0.2s; // 設定顏色與邊框改變時要有 0.2 秒的漸變動畫
+
+			&:hover,                // 當滑鼠停留在連結上時...
+			&.active {              // 或當連結擁有 active class（目前所在頁面）時...
+				color: var(--accent-orange); // 文字變成橘色
+				border-color: var(--accent-orange); // 底線也變成橘色
+			}
+		}
+	}
+}
+
+.logo {
+	font-family: "Baloo 2", cursive; 	// Logo 使用特殊的英文字體
+	font-size: 1.5rem;          		// Logo 字體大小
+	font-weight: 800;           		// Logo 字重最粗
+	background: linear-gradient
+	(130deg, var(--accent-blue) 20%, 
+	var(--accent-yellow) 65%, 
+	var(--accent-orange));				// 設定一個藍→黃→橘的漸層背景
+	-webkit-text-fill-color: transparent;// 將文字原本的顏色變透明，這樣漸層才透得出來
+}
+
+
+// ── WRAP（共用 max-width；padding 依頁面覆寫）──
+.wrap {
+    max-width: 1000px;          // 限制內容區塊最寬不超過 1000px
+    margin: 0 auto;             // 將區塊置中排列於畫面中間
+
+    //.wrap 被放在對應的 body 裡時，套用不同的內縮
+    body.page-index &,
+    body.page-stores &,
+    body.page-profile & {
+        padding: 0 20px;
+    }
+}
+
+// ── SEARCH BAR（共用結構；margin-bottom 依頁面覆寫）──
+.search-bar {
+    display: flex;              // 輸入框和按鈕水平排列
+    border-radius: 10px;        // 整個搜尋列倒圓角
+    overflow: hidden;           // 超出圓角範圍的元素藏起來（讓內部的直角不會突出來）
+    box-shadow: var(--shadow);  // 套用變數定義的陰影
+    border: 2px solid var(--border); // 套用邊框
+    animation: fadeDown 0.6s 0.08s ease both; // 載入時套用由上往下的淡入動畫，延遲 0.08 秒
+
+    body.page-stores & { margin-bottom: 20px; } // 店家頁時，下方外距 20px
+
+    input {
+        flex: 1;                  // 讓輸入框佔據所有剩下的空間
+        padding: 14px 18px;       // 框內的上下左右內距
+        border: none;             // 取消原本的邊框
+        outline: none;            // 點擊時不要出現預設藍色光暈
+        font-size: 1rem;          // 字體大小
+        background: #fff;         // 背景為白色
+    }
+
+  button {
+    padding: 14px 30px;       // 按鈕的內距
+    background: var(--accent-orange); // 按鈕背景為橘色
+    color: #fff;              // 文字顏色為白色
+    border: none;             // 取消邊框
+    cursor: pointer;          // 讓游標變成點擊的手指
+    font-size: 1rem;          // 字體大小
+    font-weight: 700;         // 字體加粗
+    transition: background 0.2s; // 背景顏色變化時要有動畫
+    letter-spacing: 1px;      // 增加一點字距
+    background-color: #f0c040;
+
+    &:hover { background: #c05227; } // 滑鼠停留時背景變深橘色
+  }
+}
+
+
+// ── BACK TOP（共用；border-top / padding 依頁面覆寫）──
+.back-top {
+  text-align: center;         // 讓裡面的文字/連結置中
+  margin-top: 10px;           // 距離上方 10px
+
+  body.page-index & { padding: 30px 0 44px; } // 首頁時的上下內距
+  body.page-stores & {
+    padding: 28px 0 44px;     // 店家頁面時的上下內距
+    border-top: 2px dashed var(--border); // 店家頁面上方多一條虛線
+  }
+
+  a {
+    color: var(--text-mid);   // 連結文字為灰色
+    text-decoration: none;    // 取消底線
+    font-size: 0.9rem;        // 字體大小
+    font-weight: 500;         // 字體粗細
+    transition: color 0.2s;   // 顏色漸變動畫
+
+    &:hover { color: var(--accent-orange); } // 游標停留時變橘色
+  }
+}
+
+
+// ── ANIMATIONS（共用）──
+@keyframes fadeDown {         // 宣告一個名為 fadeDown 的動畫
+    from { opacity: 0; transform: translateY(-16px); } // 起始狀態：透明，往上偏 16px
+    to   { opacity: 1; transform: translateY(0); }     // 結束狀態：不透明，回到原位
+}
+
+@keyframes fadeUp {           // 宣告一個名為 fadeUp 的動畫
+    from { opacity: 0; transform: translateY(16px); }  // 起始狀態：透明，往下偏 16px
+    to   { opacity: 1; transform: translateY(0); }     // 結束狀態：不透明，回到原位
+}
+
+// =========================================================
+//   首頁（body.page-index / index.html）
+// =========================================================
+
+.hero {
+  margin-bottom: 10px;
+  text-align: center;         // 文字置中
+  padding: 44px 20px 16px;    // 區塊內縮
+  animation: fadeDown 0.55s ease both; // 套用 fadeDown 動畫
+
+  h1 {
+    font-size: clamp(2rem, 5.5vw, 3.2rem); // 字體大小具備響應式，最小 2rem，最大 3.2rem，中間隨螢幕縮放
+    font-weight: 900;         // 字體極粗
+    color: var(--accent-blue); // 字體顏色為藍色
+    text-shadow: 3px 3px 0 var(--accent-yellow); // 為文字加上黃色的立體陰影
+    letter-spacing: 3px;      // 字元間距
+  }
+}
+
+.loc-bar {
+  display: flex;
+  justify-content: center;
+  animation: fadeDown 0.6s 0.08s ease both; // 跟 search-bar 一樣的進場動畫
+
+  #locBtn {
+    padding: 5px;
+    border: none;
+    border-radius: 10px;
+    background: var(--accent-orange);
+    color: #fff;
+    cursor: pointer;
+    font-weight: 700;
+    box-shadow: var(--shadow);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    transition: background 0.2s;
+    background-color: #cca436;
+
+    &:hover { background: #c05227; }
+
+    .loc-icon {
+      font-size: 1.6rem;     
+      line-height: 1;
+    }
+    .loc-text {
+      font-size: 15px;       
+      letter-spacing: 1px;
+    }
+  }
+}
+
+.map-box {
+  height: clamp(200px, 57vw, 600px); // 高度隨螢幕寬度縮放:最小 400px、最大 600px
+  border-radius: var(--radius); // 圓角
+  overflow: hidden;           // 防止內容溢出
+  box-shadow: var(--shadow);  // 陰影
+  border: 2px solid var(--border); // 邊框
+  margin: 0 60px 36px;        // 左右留 50px、距離下方 36px
+  animation: fadeUp 0.65s 0.15s ease both; // 上浮進場動畫
+
+  iframe { 
+    width: 100%;              // 讓地圖滿版
+    height: 340px;            // 高度固定
+    display: block;           // 消除 iframe 預設的底部小縫隙
+    border: none;             // 無邊框
+  }
+}
+
+.section-hd {
+  display: flex;              // 讓標題與右邊的連結水平排列
+  justify-content: flex-start; // 標題靠左
+  align-items: center;        // 垂直置中
+  margin-bottom: 20px;        // 距離下方 20px
+
+  h2 { font-size: 1.1rem; font-weight: 700; } // 標題樣式
+
+  a {
+    font-size: 0.85rem;       // 連結字體大小
+    color: var(--accent-orange); // 連結橘色
+    text-decoration: none;    // 無底線
+
+    &:hover { text-decoration: underline; } // 滑鼠停留顯示底線
+  }
+}
+
+.stores-grid {
+  width: 100%;                 // 寬度限制為 80%
+  display: grid;              // 啟動 Grid 網格排版
+  grid-template-columns: repeat(8, 1fr); // 劃分為均等的 8 個欄位
+  gap: 18px 20px;             // 上下間距 18px，左右間距 30px
+  margin: 0 auto;           // 水平置中
+}
+
+.store-item {
+  display: flex;              // 彈性佈局
+  flex-direction: column;     // 讓 Logo 和名稱上下垂直排列
+  align-items: center;        // 水平對齊中央
+  cursor: pointer;            // 點擊手勢
+  transition: transform 0.2s; // 變形過渡動畫
+
+  &:hover {
+    transform: translateY(-5px); // 滑鼠停留時整個物件往上浮 5px
+
+    .store-logo {             // 當外層被 hover 時，裡面的 logo 會發生改變
+      box-shadow: 0 8px 22px rgba(232, 105, 58, 0.28); // 橘色發光陰影
+      border-color: var(--accent-orange); // 邊框變成橘色
+    }
+  }
+}
+
+.store-logo {
+  width: 74px;                // 寬度
+  height: 74px;               // 高度
+  border-radius: 50%;         // 變成正圓形
+  display: flex;              // 彈性佈局
+  align-items: center;        // 內容垂直置中
+  justify-content: center;    // 內容水平置中
+  font-size: 1.8rem;          // 內部 Icon 大小
+  border: 3px solid #fff;     // 白色邊框
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12); // 淡陰影
+  transition: box-shadow 0.2s, border-color 0.2s; // 過渡動畫
+  overflow: hidden;           // 防止圖片超出圓形邊框
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;        // 填滿圓形但不變形
+    border-radius: 50%;
+  }
+}
+
+.store-name { 
+  font-size: 0.78rem;         // 字體縮小
+  font-weight: 500;           // 字重
+  color: var(--text-mid);     // 灰色文字
+  text-align: center;         // 文字置中
+}
+
+.hot-title {
+  text-align: center;         // 今日優惠標題置中
+  margin-bottom: 28px;
+
+  h2 {
+    font-size: clamp(1.9rem, 4.5vw, 2.8rem); // 響應式大標題
+    font-weight: 900;
+    color: var(--accent-red); // 變成搶眼的紅色
+    text-shadow: 2px 2px 0 var(--accent-yellow); // 黃色立體陰影
+    letter-spacing: 2px;
+  }
+}
+
+.line-top {
+  text-align: center;
+  margin: 30px;
+  border-top: 2px dashed var(--border); // 一條虛線分隔線
+}
+
+
+// =========================================================
+//   店家頁面（body.page-stores / stores.html）
+// =========================================================
+
+.page-title {
+  text-align: center;
+  padding: 40px 20px 24px;
+  animation: fadeDown 0.5s ease both; // 進場動畫
+
+  h1 { /* 同前面的大標題作法：響應式大小、立體陰影 */
+    font-size: clamp(1.8rem, 4.5vw, 2.8rem);
+    font-weight: 900;
+    color: var(--accent-blue);
+    text-shadow: 3px 3px 0 var(--accent-yellow);
+    letter-spacing: 2px;
+  }
+}
+
+.chips-wrap {
+  display: flex;              // 彈性排版
+  flex-wrap: wrap;            // 如果標籤太多一行塞不下，自動換行
+  gap: 10px;                  // 標籤之間的距離
+  margin-bottom: 30px;
+  animation: fadeUp 0.55s 0.1s ease both;
+}
+
+.chip {
+  padding: 7px 18px;          // 膠囊狀的內距
+  border-radius: 30px;        // 圓角很大，形成膠囊狀
+  background: var(--accent-orange); // 預設背景橘色
+  color: #fff;                // 預設文字白色
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 2px solid transparent; // 透明邊框
+  transition: background 0.2s, transform 0.15s, border-color 0.2s; // 多重過渡動畫
+  user-select: none;          // 防止使用者雙擊不小心選取文字
+
+  &:hover { 
+    background: #c05227;      // hover 時變深橘色
+    transform: translateY(-2px); // 往上浮一點點
+  }
+
+  &.active {                  // 當它是被選中的狀態時 (Active Class)
+    background: #fff;         // 背景變回白色
+    color: var(--accent-orange); // 文字變橘色
+    border-color: var(--accent-orange); // 邊框變橘色，產生反轉效果
+  }
+}
+
+.divider { 
+  border: none; 
+  border-top: 2px dashed var(--border); // 另一種虛線分隔線
+  margin: 28px 0; 
+}
+
+.store-header {
+  text-align: center;         // 商店標題置中
+  margin-bottom: 18px;
+  animation: fadeDown 0.5s 0.15s ease both;
+
+  h2 { /* 響應式大標題 */
+    font-size: clamp(2rem, 5vw, 3rem); 
+    font-weight: 900; 
+    color: var(--accent-blue); 
+    letter-spacing: 2px; }
+}
+
+.info-box {
+  background: #f0c040;        // 黃色底色
+  border-radius: var(--radius); // 圓角
+  padding: 18px 28px;         // 內縮
+  text-align: center;         // 內容置中
+  margin-bottom: 30px;        
+  line-height: 2;             // 讓文字上下間距大一點
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #3a2800;             // 深棕色文字，配黃色比較好看
+  box-shadow: 0 3px 12px rgba(0, 0, 0, 0.10); // 陰影
+  animation: fadeUp 0.5s 0.2s ease both;
+
+  span { display: inline-block; margin: 0 6px; } // 讓內部的 <span> (電話、地址等) 並排且帶有一點間距
+}
+
+.status-bar { 
+  display: flex; 
+  align-items: center; 
+  gap: 12px;                  // 標籤列水平排列
+  margin-bottom: 22px; 
+}
+
+.status-label { 
+  font-size: 0.9rem; 
+  font-weight: 700; 
+  color: var(--text-dark);    // "使用狀態" 這幾個字的樣式
+}
+
+.status-tab {
+  padding: 5px 18px;          // 圓角切換按鈕
+  border-radius: 20px;
+  border: 2px solid #ccc;     // 預設灰色邊框
+  background: #fff;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--text-mid);
+  transition: all 0.2s;
+
+  &.active {                  // 選中狀態
+    background: var(--accent-orange); // 變全橘色
+    border-color: var(--accent-orange); 
+    color: #fff; 
+    font-weight: 700; 
+  }
+
+  &:hover:not(.active) {      // 當滑鼠滑過「非」選中狀態的按鈕時
+    border-color: var(--accent-orange); // 外框變橘色
+    color: var(--accent-orange); // 文字變橘色
+  }
+}
+
+// =========================================
+//   排版設定：首頁、商店頁、個人頁 全部統一為「直式」
+// =========================================
+
+// 1. 統一網格佈局 (Grid)
+// 同時選取三個頁面中，包住卡片的外層容器
+body.page-index   .coupons-grid,
+body.page-stores  .coupons-grid,
+body.page-profile .saved-coupons-grid {
+  display: grid;              // 啟動 Grid 網格排版系統
+  grid-template-columns: repeat(4, 1fr); // 劃分成 4 個等寬的欄位 (1fr 代表 1 份彈性空間)
+  gap: 20px;                  // 卡片與卡片之間的上下左右間隔為 16px
+  margin: 100px;               // 整個網格區塊的外圍留白 30px
+}
+
+.coupon-brand-cards {
+  display: contents;     /* 自身不佔版面，coupon-card 直接交給 .coupons-grid 排 */
+}
+
+
+// 2. 統一卡片外觀與直式排版
+body.page-index   .coupon-card,
+body.page-stores  .coupon-card,
+body.page-profile .saved-coupon-card {
+  background: var(--card-bg); // 卡片背景色套用白色變數
+  border-radius: 14px;        // 卡片的圓角大小
+  border: 2px solid var(--border); // 卡片加上 2px 的實線邊框
+  padding: 18px 18px 14px;    // 卡片內部的留白（上18px、左右18px、下14px）
+  box-shadow: var(--shadow);  // 套用全域定義的陰影變數
+  cursor: pointer;            // 讓滑鼠移上去時變成點擊手勢
+  position: relative;         // 設為相對定位（若卡片內有元素要用 absolute 絕對定位時，會以此為基準）
+  display: block;             // 讓卡片以區塊(Block)形式呈現，確保直式排列
+  transition: transform 0.2s, box-shadow 0.2s; // 當變形或陰影改變時，套用 0.2 秒的平滑漸變動畫
+}
+
+// 3. 統一卡片 Hover 特效
+body.page-index   .coupon-card:hover,
+body.page-stores  .coupon-card:hover,
+body.page-profile .saved-coupon-card:hover {
+  transform: translateY(-4px); // 滑鼠懸停時，整張卡片往上(Y軸負方向)移動 4px
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.13); // 陰影擴大加深，產生「浮起來」的立體感
+}
+
+// 買一送一的專屬邊框
+body.page-index   .coupon-card.buy-one,
+body.page-stores  .coupon-card.buy-one,
+body.page-profile .saved-coupon-card.buy-one {
+  border-color: var(--accent-orange); // 當卡片帶有 .buy-one 類別時，邊框變成橘色
+}
+
+.coupon-sep { 
+  border: none;               // 清除預設邊框
+  border-top: 2px dashed var(--accent-orange); // 只保留上方邊框，並設為 2px 的橘色虛線（模擬撕折價券的線）
+  margin: 12px 0;             // 虛線的上下外距
+}
+
+.coupon-top { 
+  display: flex;              // 讓標題區塊與愛心按鈕變成水平排列
+  justify-content: space-between; // 標題靠左，愛心靠右，中間推開
+  align-items: flex-start;    // 垂直方向對齊最上方
+}
+
+.coupon-title-sm { 
+  font-size: 0.88rem;         // 標題文字大小
+  font-weight: 700;           // 粗體字
+  color: var(--text-dark);    // 深色文字
+  line-height: 1.4;           // 行高（讓折行的文字不會太擁擠）
+}
+
+.coupon-sub { 
+  font-size: 0.78rem;         // 副標題文字較小
+  color: var(--text-mid);     // 灰色文字
+  margin-top: 2px;            // 距離上方標題 2px
+}
+
+// 收藏(愛心)按鈕
+.heart-btn {                  
+  background: none;           // 按鈕去背
+  border: none;               // 按鈕去框
+  cursor: pointer;            // 點擊手勢
+  font-size: 1.3rem;          // 愛心圖案大小
+  color: #ddd;                // 未收藏時是淺灰色
+  transition: color 0.2s, transform 0.2s; // 變色與縮放動畫
+  padding: 0;                 // 移除按鈕預設內距
+  line-height: 1;             // 讓圖示不會被行高撐破
+
+  &.liked { color: var(--accent-orange); } // 當被加上 .liked 類別時，變成橘色
+  &:hover { 
+    transform: scale(1.2);    // 滑鼠移上去時，按鈕放大 1.2 倍
+    color: var(--accent-orange); // 移上去時預覽橘色
+  }
+}
+
+// 買一送一專屬大字
+.big-deal { 
+  font-size: 2rem; 
+  font-weight: 900; 
+  color: var(--accent-red);   // 大紅色吸引目光
+  letter-spacing: 1px;        // 字距微調
+  margin: 6px 0 2px;          // 外圍間距
+}
+.deal-sub { font-size: 0.78rem; color: #999; } // 買一送一下方的品項說明
+
+// 金額區塊
+.coupon-price-row { 
+  display: flex;              // 讓價格跟標籤水平排列
+  align-items: baseline;      // 讓大小不同的文字，依循底部基準線對齊
+  gap: 6px;                   // 兩者的間距
+  margin: 6px 0 2px; 
+}
+
+.coupon-price { 
+  font-size: 1.5rem; 
+  font-weight: 900; 
+  color: var(--accent-red);   // 金額為紅色
+}
+
+.coupon-price-tag {           // 金額旁邊的「優惠卷/折扣卷」小標籤
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--accent-orange); 
+  background: #fff3ed;        // 淺橘色底色
+  padding: 1px 7px;           // 很小的內距
+  border-radius: 4px;         // 微小的圓角
+  border: 1px solid #f5b99b;  // 淺橘色邊框
+}
+
+.coupon-spend { 
+  font-size: 0.8rem; 
+  color: var(--text-mid); 
+  margin-top: 2px;            // 消費門檻說明
+}
+
+.coupon-meta {                // 卡片最下方的條款列表
+  font-size: 0.73rem;         // 字體最小
+  color: #aaa;                // 淺灰色
+  margin-top: 10px;
+  line-height: 1.8;           // 行高拉大，增加易讀性
+
+  li { list-style: disc; margin-left: 16px; } // 將 <li> 加上實心圓點 (disc)，並往右縮進
+}
+
+/* 到期文案：JS（coupon-card.js）產生的 .coupon-expiry，放在條款下面 */
+.coupon-expiry {
+  display: inline-block;      // 框收縮到文字寬度，不撐滿整張卡
+  margin-top: 8px;
+  font-size: 0.75rem;
+  color: var(--text-mid);
+  padding: 2px 2px;           // 很小的內距
+  border-radius: 3px;         // 微小的圓角
+  border: 1px solid #aaa;
+}
+/* 3 天內到期（含今天）→ JS 多加 .urgent，紅字加粗提醒 */
+.coupon-expiry.urgent {
+  color: var(--accent-red);
+  font-weight: 700;
+}
+
+
+// 頁碼區塊
+.pagination { 
+  display: flex;              // 讓裡面的按鈕水平排列
+  justify-content: center;    // 整組置中對齊
+  align-items: center;        // 垂直置中
+  gap: 10px;                  // 按鈕間距 10px
+  padding: 10px 0 0; 
+}
+
+.page-btn {                   // 數字頁碼按鈕
+  width: 36px;
+  height: 36px;               // 寬高一致
+  border-radius: 50%;         // 變成正圓形
+  border: 2px solid var(--border);
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-mid);
+  transition: all 0.2s;
+  display: flex;              // 用 Flex 讓裡面的數字絕對置中
+  align-items: center;
+  justify-content: center;
+
+  &.active {                  // 目前所在的頁碼
+    background: var(--accent-orange); // 橘底白字
+    border-color: var(--accent-orange); 
+    color: #fff; 
+  }
+
+  &:hover:not(.active) {      // 滑鼠懸停（且不是 active 狀態時）
+    border-color: var(--accent-orange); 
+    color: var(--accent-orange); // 變成橘框橘字
+  }
+}
+
+.page-arrow {                 // 左右箭頭
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: var(--text-mid);
+  padding: 4px 8px;
+  transition: color 0.2s;
+
+  &:hover { color: var(--accent-orange); }
+}
+
+// =========================================================
+//   我的專區（body.page-profile / profile.html）
+// =========================================================
+
+body.page-profile .back-top { // 個人頁的「回到頂端」加上虛線上邊框
+  padding: 28px 0 44px; 
+  border-top: 2px dashed var(--border); 
+}
+
+.profile-section {
+  max-width: 1000px;          // 限制最大寬度
+  margin: 36px auto 0;        // 區塊置中
+  padding: 0 24px;
+  display: flex;              // 讓左側頭像與右側表格水平排列
+  gap: 32px;                  // 左右間距
+  align-items: flex-start;    // 頂部對齊
+  animation: fadeDown 0.5s ease both; // 載入動畫
+}
+
+.profile-left {
+  display: flex;
+  flex-direction: column;     // 讓名稱、頭像、按鈕垂直排列
+  align-items: center;        // 內部元素水平置中
+  gap: 14px;
+  flex-shrink: 0;             // 關鍵設定：防止左側被右側過長的表格擠壓變小
+}
+
+// ...(名稱、頭像框、登出按鈕等樣式，邏輯與前述雷同，主要是設定寬高、圓角、陰影與漸變色)...
+
+.profile-right { flex: 1; }   // 關鍵設定：讓右側區塊佔滿剩下的所有空間
+
+.info-table {                 // 個人資料表格
+  width: 100%;                // 表格寬度 100%
+  border-collapse: collapse;  // 合併儲存格的邊框（讓相鄰的邊框只顯示一條）
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;           // 將超出圓角的表格線隱藏
+  box-shadow: var(--shadow);
+
+  caption {                   // 表格上方的標題列 ("會員資料")
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--text-dark);
+    background: var(--bg2);   // 淺米色背景
+    padding: 10px 16px;
+    text-align: center;
+    border-bottom: 2px solid var(--border); // 標題下方的實線
+    letter-spacing: 1px;
+  }
+
+  td {                        // 所有的儲存格
+    padding: 12px 18px;
+    font-size: 0.9rem;
+    border-bottom: 1px solid #f0e4b0; // 每一列表格下方的細線
+    vertical-align: middle;   // 內容垂直置中
+  }
+
+  tr:last-child td { border-bottom: none; } // 最後一列不要細線，免得跟表格大外框重疊
+
+  td:first-child {            // 針對每一列的「第一個」儲存格 (即欄位名稱如"帳號ID")
+    width: 110px;             // 固定寬度
+    color: var(--text-mid); 
+    font-weight: 600; 
+    background: var(--bg2);   // 淺米底色區分
+    font-size: 0.82rem; 
+  }
+
+  td:last-child {             // 針對每一列的「最後一個」儲存格 (即資料值)
+    color: var(--text-dark); 
+    background: #fff;         // 白底色
+  }
+}
+
+.masked { letter-spacing: 2px; color: #aaa; }
+
+.profile-divider { 
+  max-width: 1000px; 
+  margin: 28px auto 0; 
+  padding: 0 24px; 
+  border-top: 2px dashed var(--border); 
+}
+
+.saved-title {
+  text-align: center;
+  padding: 28px 20px 20px;
+
+  h2 {
+    font-size: clamp(1.8rem, 4vw, 2.6rem);
+    font-weight: 900;
+    color: var(--accent-blue);
+    text-shadow: 3px 3px 0 var(--accent-yellow);
+    letter-spacing: 2px;
+  }
+}
+
+.profile-wrap { 
+  max-width: 1000px; 
+  margin: 0 auto; 
+  padding: 0 24px 60px; 
+}
+
+
+.active-store-title {
+  text-align: center;
+  margin-bottom: 18px;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  font-weight: 900;
+  color: var(--accent-blue);
+  letter-spacing: 2px;
+}
+
+
+.heart-remove {
+  position: absolute;
+  bottom: 7px;
+  right: 7px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  color: var(--accent-orange);
+  transition: transform 0.2s;
+  line-height: 1;
+
+  &:hover { transform: scale(1.3); }
+}
+
+.block-deal { 
+  font-size: 1.6rem; 
+  font-weight: 900; 
+  color: var(--accent-red); 
+  letter-spacing: 1px; 
+  margin: 6px 0 2px; 
+}
+.block-title { 
+  font-size: 0.78rem; 
+  font-weight: 700; 
+  color: var(--text-dark); 
+  margin-bottom: 4px; 
+}
+
+.block-desc { 
+  font-size: 0.68rem; 
+  color: #999; 
+}
+
+.block-meta { 
+  font-size: 0.65rem; 
+  color: #bbb; 
+  margin-top: 8px; 
+  line-height: 1.7; 
+  list-style: disc; 
+  padding-left: 14px; 
+}
+
+
+.empty-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 60px 20px;
+  color: #bbb;
+  font-size: 1rem;
+
+  span { 
+    font-size: 3rem; 
+    display: block; 
+    margin-bottom: 12px; 
+  }
+
+}
+
+
+// =========================================================
+//   Responsive (響應式設計)
+// =========================================================
+
+// 當螢幕寬度小於或等於 1100px 時 (例如平板橫放)
+@media (max-width: 1100px) {
+  body.page-index   .coupons-grid,
+  body.page-stores  .coupons-grid,
+  body.page-profile .saved-coupons-grid {
+    grid-template-columns: repeat(3, 1fr); // 原本 4 欄的優惠券，改為 3 欄
+  }
+  
+  body.page-index .stores-grid { 
+    grid-template-columns: repeat(6, 1fr); // 原本 8 欄的店家 Logo，改為 6 欄
+  }
+}
+
+// 當螢幕寬度小於或等於 800px 時 (例如平板直放)
+@media (max-width: 800px) {
+  body.page-index .stores-grid { 
+    grid-template-columns: repeat(4, 1fr); // 店家 Logo 改為 4 欄
+  }
+
+  body.page-index   .coupons-grid,
+  body.page-stores  .coupons-grid,
+  body.page-profile .saved-coupons-grid {
+    grid-template-columns: repeat(2, 1fr); // 優惠券改為 2 欄
+  }
+}
+
+// 當螢幕寬度小於或等於 700px 時 (例如大手機)
+@media (max-width: 700px) {
+  nav {
+    padding: 0 16px;          // 導覽列左右內縮變小
+    ul { gap: 16px; }         // 導覽列選單間距縮小，防止被擠出畫面
+  }
+}
+
+// 當螢幕寬度小於或等於 500px 時 (例如小手機)
+@media (max-width: 500px) {
+  body.page-index .stores-grid {
+    grid-template-columns: repeat(3, 1fr); // 店家 Logo 變為一排 3 個
+  }
+}
+
+// 當螢幕寬度小於或等於 900px 時 (針對個人專區)
+@media (max-width: 900px) {
+  .profile-section {
+    flex-direction: column;   // 重點：原本左右排列的 flex，改為垂直(column)排列
+    align-items: center;      // 讓頭像和表格都在畫面正中間
+  }
+  .profile-right { 
+    width: 100%;              // 讓下方的表格佔滿整個手機寬度
+  }
+}
+
+// =========================================================
+//   會員相關頁面（body.page-auth）
+//   login.html、forgot-password.html、change-password.html 共用
+// =========================================================
+body.page-auth {
+  background: #fdf6e3;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  margin: 0;
+
+  .container {
+    background: #fff;
+    padding: 40px 36px;
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+    width: 100%;
+    max-width: 360px;
+  }
+
+  .container h1 {
+    color: #c05227;
+    text-align: center;
+    margin: 0 0 8px;
+  }
+
+  .subtitle {
+    text-align: center;
+    color: #999;
+    font-size: 14px;
+    margin: 0 0 24px;
+  }
+
+  .form-group {
+    margin-bottom: 16px;
+  }
+
+  .form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+
+  .form-group input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #bbb;
+    border-radius: 8px;
+    font-size: 15px;
+    box-sizing: border-box;
+  }
+
+  .form-group input:focus {
+    outline: none;
+    border-color: #c05227;
+  }
+
+  .container .button {
+    width: 100%;
+    padding: 12px;
+    background: #c05227;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+
+  .container .button:hover {
+    opacity: 0.9;
+  }
+
+  .container .button:disabled { // change-password 的 token 無效時會鎖按鈕
+    background: #bbb;
+    cursor: not-allowed;
+  }
+
+  .alert {
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    word-break: break-all;
+  }
+
+  .alert-error {
+    background: #fff3ed;
+    color: #c05227;
+    border: 1px solid #c05227;
+  }
+
+  .alert-success {
+    background: #fdf6e3;
+    color: #6a8f3c;
+    border: 1px solid #6a8f3c;
+  }
+
+  .reset-url { // forgot-password 顯示的重設連結
+    color: #c05227;
+  }
+
+  .footer {
+    text-align: center;
+    margin-top: 20px;
+    font-size: 14px;
+  }
+
+  .footer a {
+    color: #c05227;
+    text-decoration: none;
+  }
+
+  .footer a:hover {
+    text-decoration: underline;
+  }
+}

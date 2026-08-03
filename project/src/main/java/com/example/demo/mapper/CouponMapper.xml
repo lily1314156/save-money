@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.example.demo.mapper.CouponsMapper">
+
+    <!-- ──────────────────────────────────────────────
+         coupons 有 JSON 欄位 terms，必須在 ResultMap 上指定 typeHandler，
+         不然 MyBatis 不知道要把 JSON 字串轉成 List<String>。
+         其他欄位靠 map-underscore-to-camel-case 自動對應。
+    ─────────────────────────────────────────────── -->
+    <resultMap id="couponResultMap" type="com.example.demo.entity.Coupons">
+        <id     property="id"                column="id"/>
+        <result property="brandId"           column="brand_id"/>
+        <result property="type"              column="type"/>
+        <result property="title"             column="title"/>
+        <result property="startDate"         column="start_date"/>
+        <result property="endDate"           column="end_date"/>
+        <result property="discount"         column="discount"/>
+        <result property="priceTag"          column="price_tag"/>
+        <result property="content"    column="content"/>
+        <result property="dealText"          column="deal_text"/>
+        <result property="terms"             column="terms"
+                typeHandler="com.example.demo.typehandler.JsonStringListTypeHandler"/>
+        <result property="isActive"          column="is_active"/>
+        <result property="createdAt"         column="created_at"/>
+        <!-- liked 只有 findMyCoupons 才會帶值，其他查詢這個欄位不存在於結果集，會自動是 null -->
+        <result property="liked"             column="liked"/>
+    </resultMap>
+
+    <!-- 共用欄位片段：避免每個 SELECT 重複寫一長串 -->
+    <sql id="couponColumns">
+        id, brand_id, type, title,
+        start_date, end_date,
+        discount, price_tag, content,
+        deal_text,
+        terms, is_active, created_at
+    </sql>
+
+
+    <select id="selectAllBrandSlug" resultMap="couponResultMap">
+        SELECT <include refid="couponColumns"/>
+        FROM coupons
+        WHERE is_active = 1
+          AND end_date &gt;= CURDATE()
+          AND brand_id = (SELECT id FROM brands WHERE slug = #{slug})
+        ORDER BY end_date ASC
+    </select>
+
+
+    <!-- 當日限定券：今天開始的券（start_date = 今天）且啟用中。
+         LEFT JOIN user_coupons 帶出該使用者的 liked。
+         沒紀錄 → uc.liked 為 NULL（前端會當成 false） -->
+    <select id="selectTodayCoupons" resultMap="couponResultMap">
+        SELECT
+            c.id, c.brand_id, c.type, c.title,
+            c.start_date, c.end_date,
+            c.discount, c.price_tag, c.content,
+            c.deal_text,
+            c.terms, c.is_active, c.created_at,
+            uc.liked
+        FROM coupons c
+        LEFT JOIN user_coupons uc
+               ON uc.coupon_id = c.id
+              AND uc.user_id   = #{userId}
+
+              
+        <!--「今日限定」的定義：今天開始的券（start_date = 今天）。
+            結束日不限，且處於啟用狀態（沒有被管理員強制下架）。-->
+
+        WHERE c.start_date = CURDATE()
+          AND c.is_active  = 1
+        ORDER BY c.brand_id ASC
+    </select>
+
+
+    <!-- 「我的優惠券」三個分頁的核心查詢
+         用 <choose> 依 category 切換 WHERE 條件 -->
+    <select id="selectMyCoupons" resultMap="couponResultMap">
+        SELECT
+            c.id, c.brand_id, c.type, c.title,
+            c.start_date, c.end_date,
+            c.discount, c.price_tag, c.content,
+            c.deal_text,
+            c.terms, c.is_active, c.created_at,
+            uc.liked
+        FROM user_coupons uc
+        JOIN coupons c ON c.id = uc.coupon_id
+        WHERE uc.user_id = #{userId}
+        <choose>
+            <when test="category == 'latest'">
+                AND c.end_date &gt;= CURDATE()
+            </when>
+            <when test="category == 'expired'">
+                AND c.end_date &lt; CURDATE()
+            </when>
+        </choose>
+        ORDER BY c.end_date DESC
+    </select>
+</mapper>
