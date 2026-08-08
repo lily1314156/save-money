@@ -429,8 +429,6 @@
         });
 
         // ③ 「查看附近商店」：只顯示有附近店家的品牌，其他淡化
-        //    注意：line 83 的 fadeUp animation 用了 `both` fill mode，會把 opacity 鎖在 1
-        //    普通 inline style 贏不過 animation，所以這裡必須用 !important
         const nearbyBrandIds = new Set(data.stores.map(s => s.brandId));
         document.querySelectorAll('#storesGrid .store-item').forEach(el => {
           const bid = Number(el.dataset.brandId);
@@ -528,9 +526,6 @@
       Promise.all([loadStores(), loadTodayCoupons()])
         .then(() => renderTodayCoupons(null));
     </script>
-    <!-- key 由後端 PageController 注入，不寫死在原始碼裡。
-         @{網址(參數名=值, 參數名=值)} 是 Thymeleaf 的連結語法，
-         它會自己幫你組出 ?key=xxx&callback=initMap，不用手動處理 & 符號。 -->
     <script async defer
       th:src="@{https://maps.googleapis.com/maps/api/js(key=${googleMapsApiKey},callback=initMap)}">
     </script>

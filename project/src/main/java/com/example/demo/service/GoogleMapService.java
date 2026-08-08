@@ -71,7 +71,6 @@ public class GoogleMapService {
         }
     }
 
-    //純粹用來確認 key 有沒有讀到。確認 OK 之後可以刪掉。
     @PostConstruct
     public void checkApiKeyLoaded() {
         if (apiKey == null || apiKey.isBlank()) {

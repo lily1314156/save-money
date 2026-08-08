@@ -37,24 +37,6 @@ public class GoogleApiController {
     private final NearbySearchService nearbySearchService;
     private final AuthService authService;
 
-    /** ──────────────────────────────────────────────
-    [1] 使用者打開 index.html
-        ↓
-    [2] fetch('/api/brands')
-            ↓
-    [3] 收到請求，路由到 ApiController.getBrands()
-            ↓
-    [4] Controller 呼叫 couponService.getAllBrands()
-            ↓
-    [5] Service 呼叫 brandsDao.selectAllBrands()
-            ↓
-    [6] DAO 用 MyBatis 去 MySQL 撈 brands 表的所有資料
-            ↓
-    [7] 一路把 List<Brands> 往上回傳，Spring 自動轉成 JSON
-            ↓
-    [8] 前端 JS 拿到 JSON，渲染成畫面上
-    ──────────────────────────────────────────────*/
-
     @GetMapping("/api/brands")
     public List<Brands> getBrands() {
         return couponService.getAllBrands();
