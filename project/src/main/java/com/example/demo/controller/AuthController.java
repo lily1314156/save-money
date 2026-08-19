@@ -27,18 +27,6 @@ public class AuthController {
         return authService.register(request);
     }
 
-    @PostMapping("/api/forgot-password")
-    @ResponseBody
-    public Map<String, Object> forgotPassword(@Validated @RequestBody ForgotPasswordRequest request) {
-        return authService.forgotPassword(request);
-    }
-
-    @PostMapping("/api/change-password")
-    @ResponseBody
-    public Map<String, Object> changePassword(@Validated @RequestBody ChangePasswordRequest request) {
-        return authService.changePassword(request);
-    }
-
     @PostMapping("/api/login")
     @ResponseBody
     public Map<String, Object> login(@RequestBody Map<String, String> request, HttpServletResponse response) {
@@ -72,5 +60,17 @@ public class AuthController {
         response.addCookie(cookie);
 
         return Map.of("success", true);
+    }
+
+    @PostMapping("/api/forgot-password")
+    @ResponseBody
+    public Map<String, Object> forgotPassword(@Validated @RequestBody ForgotPasswordRequest request) {
+        return authService.forgotPassword(request);
+    }
+
+    @PostMapping("/api/change-password")
+    @ResponseBody
+    public Map<String, Object> changePassword(@Validated @RequestBody ChangePasswordRequest request) {
+        return authService.changePassword(request);
     }
 }

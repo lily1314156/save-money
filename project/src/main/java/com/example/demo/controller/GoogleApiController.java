@@ -116,20 +116,8 @@ public class GoogleApiController {
         }
     }
 
-    // ──────────────────────────────────────────────
-    // Admin：券的增刪改
-    //   POST   /coupons       新增（沒 id）
-    //   PUT    /coupons/{id}  修改（有 id）
-    //   DELETE /coupons/{id}  刪除
-    // ──────────────────────────────────────────────
-
     /*
-     * POST /api/_admin/coupons
-     * {
-     *   "brandId": 1,
-     *   "type": "price",
-     *   "title": "夏季優惠",
-     * }
+     * POST /api/_admin/coupons 新增 id
      * 回傳：{"ok": true, "id": 42}
      */
     @PostMapping("/api/_admin/coupons")
@@ -137,13 +125,14 @@ public class GoogleApiController {
         return couponService.createCoupon(coupon);
     }
 
+    //修改（有 id）
     @PutMapping("/api/_admin/coupons/{id}")
     public Map<String, Object> updateCoupon(@PathVariable Integer id,
                                             @RequestBody Coupons coupon) {
         return couponService.updateCoupon(id, coupon);
     }
 
-    /*
+    /* 刪除
      * id 存在{"ok" : true, "affected": 1}
      * 不存在{"ok" : false, "affected": 0}
      */
@@ -152,13 +141,9 @@ public class GoogleApiController {
         return couponService.deleteCoupon(id);
     }
 
-    // ──────────────────────────────────────────────
-    // 整合 endpoint
+
     // 一次回 {center, stores, coupons}，前端打一支就夠
-    // ──────────────────────────────────────────────
-
     //GET /api/nearby?lat=24.15&lng=120.65&radius=1
-
     @GetMapping("/api/nearby")
     public NearbySearchResult nearby(
             @RequestParam(name = "address",  required = false) String address,

@@ -4,10 +4,8 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestAttribute;
-
 import com.example.demo.dao.UsersDao;
 import com.example.demo.entity.Users;
-
 import lombok.RequiredArgsConstructor;
 
 @Controller
@@ -16,15 +14,6 @@ public class PageController {
 
     private final UsersDao usersDao;
 
-    /**
-     * 給前端用的 Google Maps key（會印進 HTML，和後端那把不同）。
-     * 值的來源鏈：環境變數 GOOGLE_MAPS_BROWSER_KEY
-     *   → application.properties 的 google.maps.platform-key=${GOOGLE_MAPS_BROWSER_KEY:}
-     *   → 這個欄位
-     * 注意這裡「不能」加 final。這個類別有 @RequiredArgsConstructor，
-     * final 欄位會被 Lombok 塞進建構子，但 Lombok 預設不會把 @Value 一起搬過去，
-     * Spring 就找不到值可以注入了。非 final 才會走欄位注入。
-     */
     @Value("${google.maps.platform-key}")
     private String googleMapsApiKey;
 
@@ -52,6 +41,16 @@ public class PageController {
         return "profile";
     }
 
+    @GetMapping("/register")
+    public String register() {
+        return "register";
+    }
+
+    @GetMapping("/login")
+    public String login() {
+        return "login";
+    }
+
     @GetMapping("/change-password")
     public String changePassword() {
         return "change-password";
@@ -60,15 +59,5 @@ public class PageController {
     @GetMapping("/forgot-password")
     public String forgotPassword() {
         return "forgot-password";
-    }
-
-    @GetMapping("/login")
-    public String login() {
-        return "login";
-    }
-
-    @GetMapping("/register")
-    public String register() {
-        return "register";
     }
 }

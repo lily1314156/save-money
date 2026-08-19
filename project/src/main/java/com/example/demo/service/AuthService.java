@@ -31,11 +31,12 @@ public class AuthService {
 
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    /** 忘記密碼的重設 token → email 對照表 */
+    // 忘記密碼的重設 token → email 對照表
     private final ConcurrentHashMap<String, String> forgotPassword = new ConcurrentHashMap<>();
 
     public Map<String, Object> register(RegisterRequest request) {
-        // email 是登入帳號，唯一性檢查改成查 email
+
+        // email 是登入帳號
         boolean exists = usersDao.existsByEmail(request.getEmail());
         if (exists) {
             return Map.of("failed", true, "message", "此 Email 已註冊過");

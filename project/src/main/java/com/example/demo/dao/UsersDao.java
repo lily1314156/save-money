@@ -12,6 +12,17 @@ public class UsersDao {
     @Autowired
     private UsersMapper usersMapper;
 
+    /** 註冊前檢查 email 有沒有被用過 */
+    public boolean existsByEmail(String email) {
+        LambdaQueryWrapper<Users> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(Users::getEmail, email);
+        return usersMapper.exists(wrapper);
+    }
+
+    public void insert(Users user) {
+        usersMapper.insert(user);
+    }
+
     /** 用 email 找使用者（登入、忘記密碼都靠這個） */
     public Users selectByEmail(String email) {
         LambdaQueryWrapper<Users> wrapper = new LambdaQueryWrapper<>();
@@ -24,16 +35,6 @@ public class UsersDao {
         return usersMapper.selectById(id);
     }
 
-    /** 註冊前檢查 email 有沒有被用過 */
-    public boolean existsByEmail(String email) {
-        LambdaQueryWrapper<Users> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(Users::getEmail, email);
-        return usersMapper.exists(wrapper);
-    }
-
-    public void insert(Users user) {
-        usersMapper.insert(user);
-    }
 
     /** 只更新密碼欄位（updateById 遇到 null 欄位會跳過不動） */
     public void updatePassword(Integer id, String hashedPassword) {
