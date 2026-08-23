@@ -36,6 +36,7 @@ public class NearbySearchService {
                                                   String addressForDisplay,     //給前端的地址；沒地址時可傳 null
                                                   double radiusKm, boolean fallback) {  //true 時 DB 缺資料的品牌會去打 Places API 補
         // ── 步驟 2：附近店家 ──
+        //條件 ? 成立時的結果 : 不成立時的結果
         List<StoreNearbyDto> stores = fallback
                 ? storeSearchService.findNearbyWithFallback(lat, lng, radiusKm)
                 : storeSearchService.findNearby(lat, lng, radiusKm);
