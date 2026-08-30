@@ -828,12 +828,12 @@ body.page-profile .back-top {
 body.page-auth {
   background: #fdf6e3;
   display: flex;
-  justify-content: center;
-  align-items: center;
+  flex-direction: column;
   min-height: 100vh;
   margin: 0;
 }
 body.page-auth .container {
+  margin: auto;
   background: #fff;
   padding: 40px 36px;
   border-radius: 12px;

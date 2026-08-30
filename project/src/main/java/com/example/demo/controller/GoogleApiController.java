@@ -143,13 +143,13 @@ public class GoogleApiController {
 
 
     // 一次回 {center, stores, coupons}，前端打一支就夠
-    //GET /api/nearby?lat=24.15&lng=120.65&radius=1
+    //GET /api/nearby?lat=24.15&lng=120.65&radius=0.5
     @GetMapping("/api/nearby")
     public NearbySearchResult nearby(
             @RequestParam(name = "address",  required = false) String address,
             @RequestParam(name = "lat",      required = false) Double lat,
             @RequestParam(name = "lng",      required = false) Double lng,
-            @RequestParam(name = "radius",   defaultValue = "1")     double radius,
+            @RequestParam(name = "radius",   defaultValue = "0.5")     double radius,
             @RequestParam(name = "fallback", defaultValue = "false") boolean fallback) {
 
         // 優先用座標

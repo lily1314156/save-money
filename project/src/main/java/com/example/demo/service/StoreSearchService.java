@@ -63,20 +63,15 @@ public class StoreSearchService {
 
         // 對每個缺的品牌打 Places API 把結果寫回 DB
         boolean addedAny = false;
-        int radiusMeters = (int) (radiusKm * 1000);
+        int radiusMeters = (int) (radiusKm * 500);
 
         for (Brands brand : missingBrands) {
             try {
-                // 主名稱夠長直接用，太短才用最長 alias；
-                // 再帶 place_type 讓 Google 端先過濾類別
+                //拿這個 query 去打 textSearchBrand
                 String query = pickSearchQuery(brand);
                 List<PlaceResult> places = googleMapService.textSearchBrand(
                         lat, lng, query, radiusMeters, brand.getPlaceType());
 
-                // 看每個品牌實際拿什麼字串去搜、Google 回幾筆
-                // System.out.println("🔍 Places 搜尋：query=\"" + query
-                //         + "\" type=" + brand.getPlaceType()
-                //         + " → " + places.size() + " 筆");
 
                 for (PlaceResult p : places) {
                     // name 過濾 Places 回的店名必須對得上品牌名或 slug
@@ -111,8 +106,8 @@ public class StoreSearchService {
                     storesDao.insert(newStore);
                     addedAny = true;
                 }
-                // 休息 50ms
-                Thread.sleep(50);
+                // 休息 10ms
+                Thread.sleep(10);
             } catch (Exception e) {
                 // 單一品牌打失敗不要拖垮整批
                 System.err.println("⚠ Places fallback 失敗：" + brand.getName() + " | " + e.getMessage());
@@ -150,7 +145,7 @@ public class StoreSearchService {
 
     /**
      * 關鍵字比對規則（方案一）：
-     *   長度 >= 3 → contains 雙向比對（原本的行為）
+     *   長度 >= 3 → contains 雙向比對
      *   長度 <  3 → 只允許「店名開頭」命中
      * 為什麼：短關鍵字用 contains 誤殺率極高，
      *   例：brand="OK" 會匹配到「行動卡拉ok設備」的器材行。

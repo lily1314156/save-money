@@ -26,7 +26,7 @@ import java.util.Set;
 @Service
 public class GoogleMapService {
 
-    // 從 application.properties 讀（後端專用 key）
+    // 後端 key
     @Value("${google.maps.api-server-key}")
     private String apiKey;
 
@@ -136,72 +136,18 @@ public class GoogleMapService {
 
     }
 
-
-    // ──────────────────────────────────────────────
-    // Places API Nearby Search
-    // 打 nearbysearch API，掃描半徑內所有店，再用 keyword 過濾。
-    // ──────────────────────────────────────────────
-    public List<PlaceResult> placesNearby(double lat, double lng, String keyword, int radiusMeters) {
-        URI uri = UriComponentsBuilder
-                .fromUriString("https://maps.googleapis.com/maps/api/place/nearbysearch/json")
-                .queryParam("location", lat + "," + lng)    //中心點緯度 + 經度
-                .queryParam("radius",   radiusMeters)   //範圍半徑，單位「公尺」
-                .queryParam("keyword",  keyword)    //搜尋關鍵字（「星巴克」、「7-11」）
-                .queryParam("language", "zh-TW")
-                .queryParam("key",      apiKey)
-                .build()
-                .encode()
-                .toUri();
-
-        // 一行打 API、檢查狀態、解析 JSON
-        JsonNode NearbySearchNode = send(uri, "Places Nearby Search API");
-
-        String status = NearbySearchNode.path("status").asText();
-        // ZERO_RESULTS 是「正常找不到」，回空 list
-        if ("ZERO_RESULTS".equals(status)) {
-            return List.of();
-        }
-        if (!"OK".equals(status)) {
-            String errorMessage = NearbySearchNode.path("error_message").asText("(無詳細訊息)");
-            throw new IllegalStateException(
-                    "Places API 錯誤：status=" + status + ", message=" + errorMessage);
-        }
-
-        // 把 results 陣列轉成 List<PlaceResult>
-        List<PlaceResult> results = new ArrayList<>();
-        for (JsonNode item : NearbySearchNode.path("results")) {
-            JsonNode loc = item.path("geometry").path("location");
-            results.add(new PlaceResult(
-                    item.path("place_id").asText(),
-                    item.path("name").asText(),
-
-                    // Places 的 vicinity 是簡短地址先用它
-                    // 完整地址要再打 Place Details API
-                    item.path("vicinity").asText(),
-                    loc.path("lat").asDouble(),
-                    loc.path("lng").asDouble()
-            ));
-        }
-        //找到的店家清單
-        return results;
-    }
-
     /**
-     * 用品牌名稱做 Text Search。
-     * 要找「特定名稱」的店（例如品牌）
      * 直接用品牌名當查詢字串，再限縮地點範圍
-     *
      * placeType：Places 的類別過濾（例：convenience_store），
-     * 讓 Google 端就只回這個類別的店，垃圾結果進不來。
-     * 傳 null = 不過濾（分類不穩定的品牌，如手搖飲）。
+     * 讓 Google 端就只回這個類別的店
+     * 傳 null = 不過濾
      */
-    public List<PlaceResult> textSearchBrand(double lat, double lng, String brandName,
+    public List<PlaceResult> textSearchBrand(double lat, double lng, String query,
                                              int radiusMeters, String placeType) {
         UriComponentsBuilder builder = UriComponentsBuilder
                 .fromUriString("https://maps.googleapis.com/maps/api/place/textsearch/json")
-                // Text Search 的關鍵：用 query 而不是 keyword
-                // query 會直接比對店名，keyword 只是加權過濾
-                .queryParam("query",    brandName)          //品牌名稱「星巴克」、「50嵐」
+                // query 會直接比對店名
+                .queryParam("query",    query)          //品牌名稱「星巴克」、「50嵐」
                 .queryParam("location", lat + "," + lng)    //中心點緯度 + 經度
                 .queryParam("radius",   radiusMeters)       //範圍半徑，單位公尺
                 .queryParam("language", "zh-TW")
@@ -252,9 +198,8 @@ public class GoogleMapService {
 
     // ──────────────────────────────────────────────
     // Place Details：用 place_id 補抓電話 + 營業時間。
-    // Text Search / Nearby Search 不會回這兩個欄位，
     // 所以把 Places 店家寫進 DB 前要多打一次這支。
-    // fields 只填要用的兩個欄位（Details API 依欄位計費）。
+    // fields 只填要用的兩個欄位（依欄位計費）。
     // ──────────────────────────────────────────────
     public Optional<PlaceDetails> placeDetails(String placeId) {
         if (placeId == null || placeId.isBlank()) return Optional.empty();
