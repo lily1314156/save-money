@@ -24,7 +24,6 @@
                 typeHandler="com.example.demo.typehandler.JsonStringListTypeHandler"/>
         <result property="isActive"          column="is_active"/>
         <result property="createdAt"         column="created_at"/>
-        <!-- liked 只有 findMyCoupons 才會帶值，其他查詢這個欄位不存在於結果集，會自動是 null -->
         <result property="liked"             column="liked"/>
     </resultMap>
 
@@ -36,16 +35,6 @@
         deal_text,
         terms, is_active, created_at
     </sql>
-
-
-    <select id="selectAllBrandSlug" resultMap="couponResultMap">
-        SELECT <include refid="couponColumns"/>
-        FROM coupons
-        WHERE is_active = 1
-          AND end_date &gt;= CURDATE()
-          AND brand_id = (SELECT id FROM brands WHERE slug = #{slug})
-        ORDER BY end_date ASC
-    </select>
 
 
     <!-- 當日限定券：今天開始的券（start_date = 今天）且啟用中。
@@ -65,8 +54,8 @@
               AND uc.user_id   = #{userId}
 
               
-        <!--「今日限定」的定義：今天開始的券（start_date = 今天）。
-            結束日不限，且處於啟用狀態（沒有被管理員強制下架）。-->
+        <!--今天開始的券（start_date = 今天）。
+            結束日不限，且處於啟用狀態-->
 
         WHERE c.start_date = CURDATE()
           AND c.is_active  = 1
@@ -74,8 +63,8 @@
     </select>
 
 
-    <!-- 「我的優惠券」三個分頁的核心查詢
-         用 <choose> 依 category 切換 WHERE 條件 -->
+    <!-- 「我的收藏」：收藏中(liked=1)、上架中(is_active=1)、未過期的券。
+         過期／下架的收藏紀錄留在 DB，但不出現在收藏頁 -->
     <select id="selectMyCoupons" resultMap="couponResultMap">
         SELECT
             c.id, c.brand_id, c.type, c.title,
@@ -87,14 +76,9 @@
         FROM user_coupons uc
         JOIN coupons c ON c.id = uc.coupon_id
         WHERE uc.user_id = #{userId}
-        <choose>
-            <when test="category == 'latest'">
-                AND c.end_date &gt;= CURDATE()
-            </when>
-            <when test="category == 'expired'">
-                AND c.end_date &lt; CURDATE()
-            </when>
-        </choose>
-        ORDER BY c.end_date DESC
+          AND uc.liked     = 1
+          AND c.is_active  = 1
+          AND c.end_date &gt;= CURDATE()
+        ORDER BY c.end_date ASC
     </select>
 </mapper>

@@ -9,19 +9,14 @@ import java.util.List;
 
 @Mapper
 public interface CouponsMapper extends BaseMapper<Coupons> {
-
-    /** 取得指定品牌（slug）所有啟用且未過期的券 */
-    List<Coupons> selectAllBrandSlug(@Param("slug") String slug);
-
     /**
      * 當日限定券：CURDATE() 介於 start_date 與 end_date 之間且 is_active=1。
      * 額外 LEFT JOIN user_coupons 把該使用者的 liked 狀態帶出來，前端愛心要用。
      */
     List<Coupons> selectTodayCoupons(@Param("userId") Integer userId);
 
-    //取得使用者持有的券，依 category 分類：
-    List<Coupons> selectMyCoupons(@Param("userId") Integer userId,
-                                  @Param("category") String category);
+    /** 取得使用者收藏中、且仍上架未過期的券 */
+    List<Coupons> selectMyCoupons(@Param("userId") Integer userId);
 
     @Insert("INSERT INTO user_coupons (user_id, coupon_id, liked) " +
         "VALUES (#{userId}, #{couponId}, 1) " +

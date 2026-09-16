@@ -10,7 +10,6 @@
     <link rel="stylesheet" href="/css/style-merged.css">
   </head>
 
-
   <body class="page-stores">
 
     <!-- NAV -->
@@ -103,28 +102,6 @@
         const res = await fetch(url, options);
         if (!res.ok) throw new Error(`API ${url} 失敗 (${res.status})`);
         return res.json();
-      }
-
-      /* ── 補查收藏狀態：/api/coupons/all 沒 JOIN user_coupons，liked 一律是 null，
-         拿到列表後用 status-batch 一次補齊（走 Redis，一整頁只多 1 次請求）。
-         未登入會 401 → 不是錯誤，訪客本來就沒收藏，安靜略過（愛心全暗是正確畫面）。
-         這裡不用 fetchJson：理由跟 toggleHeart 一樣，要自己看狀態碼。 ── */
-      async function applyLikedStatus(coupons) {
-        if (!coupons || coupons.length === 0) return;
-        try {
-          const res = await fetch('/api/me/coupons/like/status-batch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ couponIds: coupons.map(c => c.id) })
-          });
-          if (res.ok) {
-            const map = await res.json();               // 長相：{ "3": true, "5": false }
-            coupons.forEach(c => c.liked = map[c.id] === true);
-          }
-        } catch (err) {
-          // 網路錯誤也略過：愛心是加分項，不該讓整頁掛掉
-          console.error('補查收藏狀態失敗', err);
-        }
       }
 
       // 今天日期 'yyyy-MM-dd'（用本地時間組字串；toISOString 是 UTC，晚上會差一天）
@@ -220,7 +197,13 @@
        */
       function renderStoreInfo() {
         const brand = allBrands.find(b => b.slug === currentBrandSlug);
-        if (!brand) return;
+        if (!brand) {
+          // 沒選品牌（點了「全部」tab）→ 顯示全部品牌的券，資訊框給提示
+          document.getElementById('storeTitle').textContent = '全部品牌';
+          document.getElementById('infoBox').innerHTML =
+            '<span style="color:#aaa">目前顯示所有品牌的優惠券，點上方品牌可查看店家資訊</span>';
+          return;
+        }
 
         // 優先吃搜尋結果：nearbyData.stores 已經是依距離排序好的
         let firstStore = null;
@@ -263,6 +246,8 @@
           btn.classList.add('active');
           currentType = null;
           currentExpiry = null;
+          currentBrandSlug = null;   // 跟 index 一樣：清掉品牌選取，顯示全部品牌的券
+          renderStoreInfo();         // 標題／資訊框改成「全部品牌」的顯示
         } else {
           // 只清「同群組」＋「全部」的 active，另一個群組不動
           const group = btn.dataset.group;   // 'type' 或 'expiry'
@@ -365,32 +350,62 @@
         });
       }
 
-      /* ── Toggle Like：先樂觀切視覺，再打後端；失敗就回滾 ── */
+      /* ── 把後端回傳的最新 liked 寫回列表快取 ──
+         不寫的話，切 tab／換頁重畫是讀快取，愛心會彈回舊狀態。
+         dataset.id 是字串、券的 id 是數字，要先轉型才比得到 ── */
+      function updateCouponCache(couponId, liked) {
+        [couponsCache.all, couponsCache.latest].forEach(list => {
+          const c = (list || []).find(c => c.id === Number(couponId));
+          if (c) c.liked = liked;
+        });
+      }
+
+      /* ── Toggle Like ──
+         1. 先存 wasLiked 快照，再樂觀更新（失敗時能精確回復原狀，
+            不是再 toggle 一次去對消）
+         2. 401 → 回滾並問要不要去登入
+         3. 其他非 2xx（例如後端 409）→ 回滾
+         4. 成功 → 以後端回傳的 liked 為準設定畫面並寫回快取
+         5. pendingLikes 擋同一張券還在飛的重複點擊（toggle 不冪等，
+            兩個請求交錯回來會把快取蓋成舊狀態） ── */
+      const pendingLikes = new Set();   // 請求還在飛的 couponId
+
       async function toggleHeart(btn) {
         const id = btn.dataset.id;
-        btn.classList.toggle('liked');
+        if (pendingLikes.has(id)) return;
+        pendingLikes.add(id);
+
+        const wasLiked = btn.classList.contains('liked');   // 回滾用的快照
+        btn.classList.toggle('liked', !wasLiked);           // 樂觀更新
+
         try {
-          // 這裡不用 fetchJson：因為要自己看 401 狀態碼，fetchJson 會直接丟 Error 分不出原因
+          // 這裡不用 fetchJson：要自己分辨 401 和其他錯誤，fetchJson 一律丟 Error
           const res = await fetch(`/api/me/coupons/${id}/like`, { method: 'POST' });
-          if (res.status === 401) {           // 後端說「未登入」
-            btn.classList.toggle('liked');    // 回滾
+
+          if (res.status === 401) {                    // 未登入
+            btn.classList.toggle('liked', wasLiked);   // 回滾
             if (confirm('請先登入才能收藏優惠券，要前往登入頁嗎？')) {
               window.location.href = '/login';
             }
             return;
           }
-          if (!res.ok) throw new Error('HTTP ' + res.status);
-          // 後端回 { ok, liked }：把最新狀態寫回兩份快取。
-          // 不寫的話，切 tab 重畫（renderCoupons 讀快取）愛心會彈回舊狀態。
-          // dataset.id 是字串，券的 id 是數字，要先轉型才比得到
+
+          if (!res.ok) {                               // 409 等後端失敗
+            btn.classList.toggle('liked', wasLiked);   // 回滾
+            console.error('收藏失敗 HTTP ' + res.status);
+            return;
+          }
+
+          // 成功：後端回 { ok: true, liked }，liked 是切換後的權威狀態。
+          // toggle 第二參數是「設定」不是「切換」
           const { liked } = await res.json();
-          [couponsCache.all, couponsCache.latest].forEach(list => {
-            const c = (list || []).find(c => c.id === Number(id));
-            if (c) c.liked = liked;
-          });
+          btn.classList.toggle('liked', liked);
+          updateCouponCache(id, liked);
         } catch (err) {
-          btn.classList.toggle('liked');
+          btn.classList.toggle('liked', wasLiked);     // 網路錯誤：回滾
           console.error(err);
+        } finally {
+          pendingLikes.delete(id);
         }
       }
 
@@ -432,26 +447,21 @@
       }
 
       /* ──────────────────────────────────────────────
-         Search：跟 index.html 同一個流程
          輸入「逢甲大學」→ 打 /api/nearby
          後端流程：
            ① NearbySearchService 收到 address
-           ② 用 Geocoding API 把「逢甲大學」翻成 (24.179, 120.649)
+           ② 地址轉座標→ 拿到 {lat,lng}，存成 center
            ③ DB 沒店 → 用這個中心點打 Places API 撈附近品牌店家
            ④ 把 {center, stores, coupons} 包成 JSON 回來
-         前端拿到後做三件事：
-           ① 把附近沒店的品牌 chip 淡掉
-           ② 用搜尋結果換掉「最新」券快取
-           ③ 預設選第一個有店家的品牌，秀它的店家資訊
          ────────────────────────────────────────────── */
       async function filterBrand() {
         const q = document.getElementById('searchInput').value.trim();
         if (!q) return;
 
         try {
-          // radius=1：只抓中心點半徑 1 公里內的店家（跟 index.html 一致）
+          // radius=0.5：中心點半徑 0.5 公里內
           // fallback=true：DB 沒涵蓋的品牌會自動打 Places API 補上
-          const url = `/api/nearby?address=${encodeURIComponent(q)}&radius=1&fallback=true`;
+          const url = `/api/nearby?address=${encodeURIComponent(q)}&radius=0.5&fallback=true`;
           const data = await fetchJson(url);
 
           // 把搜尋結果記到全域狀態，待會 renderStoreInfo 要用

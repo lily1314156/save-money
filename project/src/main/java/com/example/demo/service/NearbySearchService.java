@@ -2,7 +2,7 @@ package com.example.demo.service;
 
 import com.example.demo.entity.Coupons;
 import com.example.demo.service.GoogleMapService.GeoLocation;
-import com.example.demo.service.StoreSearchService.StoreNearbyDto;
+import com.example.demo.service.StoreSearchService.StoreNearList;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import java.util.List;
@@ -37,13 +37,13 @@ public class NearbySearchService {
                                                   double radiusKm, boolean fallback) {  //true 時 DB 缺資料的品牌會去打 Places API 補
         // ── 步驟 2：附近店家 ──
         //條件 ? 成立時的結果 : 不成立時的結果
-        List<StoreNearbyDto> stores = fallback
+        List<StoreNearList> stores = fallback
                 ? storeSearchService.findNearbyWithFallback(lat, lng, radiusKm)
                 : storeSearchService.findNearby(lat, lng, radiusKm);
 
         // ── 步驟 3：抓出範圍內出現過哪些品牌（Set 去重）──
         Set<Integer> brandIds = stores.stream()
-                .map(StoreNearbyDto::brandId)
+                .map(StoreNearList::brandId)
                 .collect(Collectors.toSet());
 
         // ── 步驟 4：對應的所有有效優惠券 ──
@@ -72,7 +72,7 @@ public class NearbySearchService {
      */
     public record NearbySearchResult(
             Center center,
-            List<StoreNearbyDto> stores,
+            List<StoreNearList> stores,
             List<Coupons> coupons
     ) {}
 

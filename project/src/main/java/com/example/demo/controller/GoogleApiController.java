@@ -24,10 +24,9 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-/*
- * REST API 端點集中地。
- * Controller 只負責：收 HTTP 請求 → 呼叫 Service → 回傳 JSON。
- */
+
+//REST API 端點集中地。
+//Controller 只負責：收 HTTP 請求 → 呼叫 Service → 回傳 JSON。
 @RestController
 @RequiredArgsConstructor
 public class GoogleApiController {
@@ -47,17 +46,10 @@ public class GoogleApiController {
         return couponService.getAllStores();
     }
 
-    @GetMapping("/api/coupons")
-
-    //@RequestParam("brand") 代表從 ?brand=xxx 取值
-    //api/coupons?brand=fifty
-    public List<Coupons> getCouponsByBrand(@RequestParam("brand") String brandSlug) {
-        return couponService.getCouponsBrand(brandSlug);
-    }
 
     /**
-     * 首頁列表：訪客也能看，所以「可選登入」——
-     * 不走攔截器，自己讀 cookie：有登入 → 用真實 id（愛心會亮）；
+     * 首頁
+     * 自己讀 cookie：有登入 → 用真實 id（愛心會亮）；
      * 沒登入 → userId 傳 null，SQL 的 LEFT JOIN 匹配不到任何收藏，愛心全暗。
      */
     @GetMapping("/api/coupons/today")
@@ -68,58 +60,22 @@ public class GoogleApiController {
         return couponService.getTodayCoupons(userId);
     }
 
-    /** 全部有效券（is_active=1 且未過期），index「全部」tab 用 */
+    //全部有效券且未過期
     @GetMapping("/api/coupons/all")
     public List<Coupons> getAllActiveCoupons() {
         return couponService.getActiveCoupons();
     }
 
-
-    // ──────────────────────────────────────────────
     // 「我的券」
-    // ──────────────────────────────────────────────
-
-    /** GET /api/me/coupons?category=latest（強制登入，由 AuthInterceptor 把關） */
+    //收藏且有效的券（強制登入）
     @GetMapping("/api/me/coupons")
     public List<Coupons> getMyCoupons(
-            @RequestParam(name = "category", defaultValue = "latest") String category,
             @RequestAttribute("loginUser") Users loginUser) {
-        return couponService.getMyCoupons(loginUser.getId(), category);
+        return couponService.getMyCoupons(loginUser.getId());
     }
 
-
-    /**
-     * GET /api/geocode?address=台中市政府
-     *
-     * 回傳：
-     *   找到 → {"found": true, "address": "...", "lat": 24.16, "lng": 120.65}
-     *   找不到 → {"found": false, "address": "..."}
-     *   key 壞、IP 不對 → 500 + 例外訊息
-     */
-    @GetMapping("/api/geocode")
-    public Map<String, Object> geocode(@RequestParam("address") String address) {
-        Optional<GeoLocation> result = googleMapService.geocode(address);
-
-        if (result.isPresent()) {
-            GeoLocation loc = result.get();
-            return Map.of(
-                    "found",   true,
-                    "address", address,
-                    "lat",     loc.lat(),
-                    "lng",     loc.lng()
-            );
-        } else {
-            return Map.of(
-                    "found",   false,
-                    "address", address
-            );
-        }
-    }
-
-    /*
-     * POST /api/_admin/coupons 新增 id
-     * 回傳：{"ok": true, "id": 42}
-     */
+    // POST /api/_admin/coupons 新增 id
+    // 回傳：{"ok": true, "id": 42}
     @PostMapping("/api/_admin/coupons")
     public Map<String, Object> createCoupon(@RequestBody Coupons coupon) {
         return couponService.createCoupon(coupon);
@@ -131,16 +87,6 @@ public class GoogleApiController {
                                             @RequestBody Coupons coupon) {
         return couponService.updateCoupon(id, coupon);
     }
-
-    /* 刪除
-     * id 存在{"ok" : true, "affected": 1}
-     * 不存在{"ok" : false, "affected": 0}
-     */
-    @DeleteMapping("/api/_admin/coupons/{id}")
-    public Map<String, Object> deleteCoupon(@PathVariable Integer id) {
-        return couponService.deleteCoupon(id);
-    }
-
 
     // 一次回 {center, stores, coupons}，前端打一支就夠
     //GET /api/nearby?lat=24.15&lng=120.65&radius=0.5

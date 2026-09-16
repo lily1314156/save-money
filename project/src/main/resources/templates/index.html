@@ -353,23 +353,62 @@
         });
       }
 
-      // ── Toggle Like：先樂觀切視覺，再打後端；失敗就回滾 ──
+      /* ── 把後端回傳的最新 liked 寫回列表快取 ──
+         不寫的話，切 tab／換頁重畫是讀快取，愛心會彈回舊狀態。
+         dataset.id 是字串、券的 id 是數字，要先轉型才比得到 ── */
+      function updateCouponCache(couponId, liked) {
+        [couponsCache.all, couponsCache.latest].forEach(list => {
+          const c = (list || []).find(c => c.id === Number(couponId));
+          if (c) c.liked = liked;
+        });
+      }
+
+      /* ── Toggle Like ──
+         1. 先存 wasLiked 快照，再樂觀更新（失敗時能精確回復原狀，
+            不是再 toggle 一次去對消）
+         2. 401 → 回滾並問要不要去登入
+         3. 其他非 2xx（例如後端 409）→ 回滾
+         4. 成功 → 以後端回傳的 liked 為準設定畫面並寫回快取
+         5. pendingLikes 擋同一張券還在飛的重複點擊（toggle 不冪等，
+            兩個請求交錯回來會把快取蓋成舊狀態） ── */
+      const pendingLikes = new Set();   // 請求還在飛的 couponId
+
       async function toggleHeart(btn) {
         const id = btn.dataset.id;
-        btn.classList.toggle('liked');
+        if (pendingLikes.has(id)) return;
+        pendingLikes.add(id);
+
+        const wasLiked = btn.classList.contains('liked');   // 回滾用的快照
+        btn.classList.toggle('liked', !wasLiked);           // 樂觀更新
+
         try {
+          // 這裡不用 fetchJson：要自己分辨 401 和其他錯誤，fetchJson 一律丟 Error
           const res = await fetch(`/api/me/coupons/${id}/like`, { method: 'POST' });
-          if (res.status === 401) {           // 後端說「未登入」
-            btn.classList.toggle('liked');    // 回滾
+
+          if (res.status === 401) {                    // 未登入
+            btn.classList.toggle('liked', wasLiked);   // 回滾
             if (confirm('請先登入才能收藏優惠券，要前往登入頁嗎？')) {
               window.location.href = '/login';
             }
             return;
           }
-          if (!res.ok) throw new Error('HTTP ' + res.status);
+
+          if (!res.ok) {                               // 409 等後端失敗
+            btn.classList.toggle('liked', wasLiked);   // 回滾
+            console.error('收藏失敗 HTTP ' + res.status);
+            return;
+          }
+
+          // 成功：後端回 { ok: true, liked }，liked 是切換後的權威狀態。
+          // toggle 第二參數是「設定」不是「切換」
+          const { liked } = await res.json();
+          btn.classList.toggle('liked', liked);
+          updateCouponCache(id, liked);
         } catch (err) {
-          btn.classList.toggle('liked'); // 回滾
+          btn.classList.toggle('liked', wasLiked);     // 網路錯誤：回滾
           console.error(err);
+        } finally {
+          pendingLikes.delete(id);
         }
       }
 
@@ -495,7 +534,7 @@
           msg.textContent = '搜尋附近店家中…';
 
           // 直接帶座標，後端跳過 geocode 步驟
-          const url = `/api/nearby?lat=${lat}&lng=${lng}&radius=1&fallback=true`;
+          const url = `/api/nearby?lat=${lat}&lng=${lng}&radius=0.5&fallback=true`;
           const res = await fetch(url);
           if (!res.ok) throw new Error('HTTP ' + res.status);
           const data = await res.json();

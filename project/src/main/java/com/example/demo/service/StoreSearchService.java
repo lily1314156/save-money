@@ -27,28 +27,28 @@ public class StoreSearchService {
     // 地球半徑
     private static final double EARTH_RADIUS_KM = 6371.0;
 
-    public List<StoreNearbyDto> findNearby(double lat, double lng, double radiusKm) {
+    public List<StoreNearList> findNearby(double lat, double lng, double radiusKm) {
         // 回傳附近的門市
         return storesDao.selectAllStores().stream()
                 // 過濾掉 lat 或 lng 是 null
                 .filter(s -> s.getLat() != null && s.getLng() != null)
                 // 算每間門市跟你的距離
-                .map(s -> StoreNearbyDto.from(s, haversineKm(lat, lng, s.getLat(), s.getLng())))
+                .map(s -> StoreNearList.from(s, haversineKm(lat, lng, s.getLat(), s.getLng())))
                 // 超過半徑的丟掉
                 .filter(dto -> dto.distanceKm() <= radiusKm)
                 // 由近到遠排
-                .sorted(Comparator.comparingDouble(StoreNearbyDto::distanceKm))
+                .sorted(Comparator.comparingDouble(StoreNearList::distanceKm))
                 .toList();
     }
 
     //先查 DB 沒有的品牌才打 Places API 補上去
-    public List<StoreNearbyDto> findNearbyWithFallback(double lat, double lng, double radiusKm) {
+    public List<StoreNearList> findNearbyWithFallback(double lat, double lng, double radiusKm) {
         // 第一次查 DB
-        List<StoreNearbyDto> firstPass = findNearby(lat, lng, radiusKm);
+        List<StoreNearList> firstPass = findNearby(lat, lng, radiusKm);
 
         // 已經在範圍內有的品牌 id
         Set<Integer> brandsWithStores = firstPass.stream()
-                .map(StoreNearbyDto::brandId)
+                .map(StoreNearList::brandId)
                 .collect(Collectors.toSet());
 
         // 找出範圍內完全沒有的品牌
@@ -63,7 +63,7 @@ public class StoreSearchService {
 
         // 對每個缺的品牌打 Places API 把結果寫回 DB
         boolean addedAny = false;
-        int radiusMeters = (int) (radiusKm * 500);
+        int radiusMeters = (int) (radiusKm * 1000);
 
         for (Brands brand : missingBrands) {
             try {
@@ -87,8 +87,8 @@ public class StoreSearchService {
                         continue;
                     }
 
-                    // Text Search 不回電話/營業時間 → 用 place_id 多打一次 Place Details 補上
-                    // 失敗就存 null（前端顯示「—」），不要讓整批搜尋炸掉
+                    // 用 place_id 多打一次 Place Details 補上
+                    // 失敗就存 null
                     GoogleMapService.PlaceDetails details =
                             googleMapService.placeDetails(p.placeId()).orElse(null);
 
@@ -164,10 +164,6 @@ public class StoreSearchService {
      *   主名稱長度 >= 3 → 直接用主名稱。
      *     消費者最常用的稱呼，Google 對它最準（例：50嵐、星巴克）。
      *   主名稱太短（"OK"、"全家"）→ 才從 aliases 挑最長的升級。
-     *
-     * 教訓：aliases 是給「比對」用的，不一定適合拿去「搜尋」。
-     * 之前無條件挑最長，50嵐 會選到 "50lan"（5 字元 > 3 字元），
-     * Google 用這個羅馬拼音根本搜不到店。
      */
     private static String pickSearchQuery(Brands brand) {
         String name = brand.getName();
@@ -210,7 +206,7 @@ public class StoreSearchService {
     }
 
     // 用 record 寫，欄位是 immutable + 自動有 getter。
-    public record StoreNearbyDto(
+    public record StoreNearList(
             Integer id,
             Integer brandId,
             String  name,
@@ -222,8 +218,8 @@ public class StoreSearchService {
             double  distanceKm
     ) {
         // 從 Stores + 距離組出來，避免 controller 寫一長串 new
-        public static StoreNearbyDto from(Stores s, double distanceKm) {
-            return new StoreNearbyDto(
+        public static StoreNearList from(Stores s, double distanceKm) {
+            return new StoreNearList(
                     s.getId(),
                     s.getBrandId(),
                     s.getName(),

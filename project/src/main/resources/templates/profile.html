@@ -89,7 +89,7 @@
     <script>
       /* ── State ── */
       let allBrands = [];                                       // /api/brands 回來的整包
-      let myCoupons = null;          // /api/me/coupons?category=all 整包（含過期，前端自己濾），只打一次
+      let myCoupons = null;          // /api/me/coupons 整包（收藏中且有效的券），只打一次
 
       // 篩選狀態（兩個維度，互不干擾）——跟 index.html 同一套
       let currentType   = null;      // null = 不限類型 / 'buy1get1' = 買一送一 / 'price' = 折價券
@@ -167,7 +167,7 @@
       /* ── Render store label（顯示目前選的品牌名稱）── */
       function renderLabel() {
         const b = allBrands.find(b => b.slug === currentBrandSlug);
-        document.getElementById('activeStoreLabel').textContent = b ? b.name : '';
+        document.getElementById('activeStoreLabel').textContent = b ? b.name : '全部品牌';
       }
 
       /* ── Tab 切換：全部 / 類型（買一送一、折價券）/ 有效期限（最新、即將到期）──
@@ -182,6 +182,7 @@
           btn.classList.add('active');
           currentType = null;
           currentExpiry = null;
+          currentBrandSlug = null;   // 跟 index 一樣：清掉品牌選取，顯示全部品牌的券
         } else {
           // 只清「同群組」＋「全部」的 active，另一個群組不動
           const group = btn.dataset.group;   // 'type' 或 'expiry'
@@ -200,11 +201,11 @@
       }
 
       /* ── 依 currentType ＋ currentExpiry 算出要顯示的券，塞進 currentCoupons ──
-         資料只打一次 API：category=all 回「我的所有券」（含過期），之後全部前端過濾 */
+         資料只打一次 API：回「收藏中且有效的券」，之後全部前端過濾 */
       async function applyFilters() {
         if (myCoupons === null) {
           try {
-            myCoupons = await fetchJson('/api/me/coupons?category=all');
+            myCoupons = await fetchJson('/api/me/coupons');
           } catch (err) {
             document.getElementById('savedGrid').innerHTML =
               '<p style="color:#c33;grid-column:1/-1;text-align:center;padding:40px 0;">載入失敗，請確認後端是否啟動</p>';
@@ -212,7 +213,7 @@
           }
         }
 
-        // 基底：收藏中（liked）且未過期（「已過期」tab 已移除，過期券一律不顯示）
+        // 後端已濾過一次；這裡再濾是為了「取消收藏後就地更新快取」與「頁面開著跨日」兩種情況
         let list = myCoupons.filter(c => c.liked === true && c.endDate >= todayStr());
 
         // 「最新」＝今天開始的券（跟 index 同定義）
@@ -305,16 +306,25 @@
         wrap.appendChild(next);
       }
 
-      /* ── 取消收藏：打 like API（toggle），成功後就地把 cache 內該券標記為 unliked ── */
+      /* ── 取消收藏：打 like API（toggle），成功後把後端回傳的最新狀態寫回 cache ──
+         pendingLikes：toggle 不冪等，連點兩下會又收藏回去，
+         所以請求還在飛時忽略同一張券的重複點擊 ── */
+      const pendingLikes = new Set();   // 請求還在飛的 couponId
+
       async function removeAndRefresh(id) {
+        if (pendingLikes.has(id)) return;   // 上一次點擊還沒回來 → 忽略
+        pendingLikes.add(id);
         try {
-          await fetchJson(`/api/me/coupons/${id}/like`, { method: 'POST' });
-          // 更新快取：把該券 liked 設 false，再重跑篩選（會從畫面消失）
+          // 後端回 { ok, liked }：liked 是切換後的權威狀態，
+          // 用它更新快取（正常取消收藏就是 false），再重跑篩選（會從畫面消失）
+          const { liked } = await fetchJson(`/api/me/coupons/${id}/like`, { method: 'POST' });
           const c = (myCoupons || []).find(c => c.id === Number(id));
-          if (c) c.liked = false;
+          if (c) c.liked = liked;
           await applyFilters();
         } catch (err) {
           console.error(err);
+        } finally {
+          pendingLikes.delete(id);
         }
       }
 
